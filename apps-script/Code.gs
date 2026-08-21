@@ -689,6 +689,37 @@ function makeCode_() {
 /* One-time setup                                                              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Run this from the editor if you cannot find where the data went. It does not
+ * change anything; it just prints which spreadsheet this script is attached to.
+ * View > Logs (or the Execution log pane) shows the output.
+ */
+function whereIsTheSheet() {
+  const book = SpreadsheetApp.getActiveSpreadsheet();
+  if (!book) {
+    console.log(
+      'STANDALONE PROJECT — this script is not attached to any spreadsheet, so\n' +
+      'setupSheets() had nothing to write to and the web app cannot store data.\n\n' +
+      'Fix: create a Google Sheet, open Extensions > Apps Script from inside it,\n' +
+      'paste Code.gs and appsscript.json into that new project, and run\n' +
+      'setupSheets() there. Then re-deploy and update the HOTDESK_API_URL\n' +
+      'repository variable with the new /exec URL.');
+    return;
+  }
+  console.log('Attached to: ' + book.getName());
+  console.log('URL:         ' + book.getUrl());
+  console.log('Tabs:        ' + book.getSheets().map(function (s) {
+    return s.getName();
+  }).join(', '));
+  const roster = book.getSheetByName(SHEETS.roster);
+  if (!roster || roster.getLastRow() < 2) {
+    console.log('No roster rows yet — run setupSheets().');
+  } else {
+    const row = roster.getRange(2, 1, 1, 4).getValues()[0];
+    console.log('First roster row: email=' + row[0] + '  code=' + row[2] + '  role=' + row[3]);
+  }
+}
+
 function setupSheets() {
   const book = book_();
   const spec = [
