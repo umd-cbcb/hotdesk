@@ -47,9 +47,13 @@
     return parseYmd(ymd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
 
-  function prettyTime(hhmm) {
-    var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
-    if (!m) return hhmm;
+  // The server normalises times to HH:mm, but never render a raw Date string at
+  // the user if something slips through — pull the clock out of it instead.
+  function prettyTime(value) {
+    var text = String(value === undefined || value === null ? '' : value).trim();
+    var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(text) ||
+            /\b(\d{1,2}):(\d{2})(?::\d{2})?\b/.exec(text);
+    if (!m) return text;
     var h = Number(m[1]), suffix = h >= 12 ? 'pm' : 'am';
     var h12 = h % 12 === 0 ? 12 : h % 12;
     return h12 + (m[2] === '00' ? '' : ':' + m[2]) + suffix;
@@ -165,9 +169,18 @@
     $('#btn-admin').hidden = d.user.role !== 'moderator';
     $('#clock').textContent = dateSub(d.now.date);
 
+    // Moderators see configuration problems; students should not have to care.
+    var warnings = d.config.warnings || [];
     var notice = $('#notice');
-    notice.textContent = d.config.noticeText || '';
-    notice.hidden = !d.config.noticeText;
+    var lines = warnings.slice();
+    if (d.config.noticeText) lines.unshift(d.config.noticeText);
+    notice.textContent = '';
+    lines.forEach(function (line, i) {
+      if (i) notice.appendChild(document.createElement('br'));
+      notice.appendChild(document.createTextNode(
+        (warnings.indexOf(line) > -1 ? 'Check the Config tab: ' : '') + line));
+    });
+    notice.hidden = !lines.length;
 
     renderPresence();
     renderDayStrip();

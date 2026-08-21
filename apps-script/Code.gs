@@ -165,13 +165,75 @@ function audit_(actor, action, detail) {
 /* Config + time                                                              */
 /* -------------------------------------------------------------------------- */
 
+const TIME_KEYS = ['releaseTime', 'checkInDeadline'];
+
+function pad2_(n) { return (n < 10 ? '0' : '') + n; }
+
+/**
+ * Google Sheets silently turns a typed "17:00" into a time *value*, which comes
+ * back here as a Date on the spreadsheet epoch (1899-12-30). Left alone that
+ * printed as "Sat Dec 30 1899 17:00:00 GMT-0500" in the UI and — far worse —
+ * failed the HH:mm parse, so the rule quietly fell back to its built-in default
+ * instead of the configured time. Everything is normalised to "HH:mm" here.
+ */
+function normalizeTime_(value) {
+  if (value === null || value === undefined || value === '') return '';
+
+  // Read the clock fields directly rather than reformatting through a timezone:
+  // the tz database carries odd offsets that far back and can shift the result.
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return pad2_(value.getHours()) + ':' + pad2_(value.getMinutes());
+  }
+
+  // A cell formatted as a plain number holds a fraction of a day.
+  if (typeof value === 'number' && isFinite(value)) {
+    const minutes = Math.round((value % 1) * 1440);
+    return pad2_(Math.floor(minutes / 60) % 24) + ':' + pad2_(minutes % 60);
+  }
+
+  const text = String(value).trim();
+
+  let m = /^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap])\.?m\.?$/i.exec(text);
+  if (m) {
+    let h = Number(m[1]);
+    if (m[3].toLowerCase() === 'p' && h < 12) h += 12;
+    if (m[3].toLowerCase() === 'a' && h === 12) h = 0;
+    return pad2_(h) + ':' + m[2];
+  }
+  m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(text);
+  if (m) return pad2_(Number(m[1])) + ':' + m[2];
+
+  // Last resort: a Date already stringified somewhere upstream.
+  m = /\b(\d{1,2}):(\d{2}):\d{2}\b/.exec(text);
+  if (m) return pad2_(Number(m[1])) + ':' + m[2];
+
+  return '';   // unparseable: the caller warns rather than guessing
+}
+
 function getConfig_() {
   const cfg = {};
   Object.keys(DEFAULT_CONFIG).forEach(function (k) { cfg[k] = DEFAULT_CONFIG[k]; });
+  const warnings = [];
   readRows_(SHEETS.config).forEach(function (r) {
     const key = String(r.key || '').trim();
-    if (key) cfg[key] = String(r.value === undefined || r.value === null ? '' : r.value).trim();
+    if (!key) return;
+    const raw = r.value === undefined || r.value === null ? '' : r.value;
+    if (TIME_KEYS.indexOf(key) > -1) {
+      const time = normalizeTime_(raw);
+      if (!time) {
+        // Never fall back silently: a wrong deadline that nobody can see is
+        // worse than a visible complaint.
+        warnings.push(key + ' is not a readable time ("' + String(raw) +
+                      '"); using the default ' + DEFAULT_CONFIG[key] + '.');
+        cfg[key] = DEFAULT_CONFIG[key];
+      } else {
+        cfg[key] = time;
+      }
+      return;
+    }
+    cfg[key] = String(raw).trim();
   });
+  cfg.warnings = warnings;
   cfg.horizonDays = Math.max(0, parseInt(cfg.horizonDays, 10) || 0);
   cfg.maxOpenClaims = Math.max(1, parseInt(cfg.maxOpenClaims, 10) || 1);
   cfg.checkInEnabled = String(cfg.checkInEnabled).toUpperCase() !== 'FALSE';
@@ -470,6 +532,7 @@ function apiState_(p) {
       horizonDays: cfg.horizonDays, maxOpenClaims: cfg.maxOpenClaims,
       checkInDeadline: cfg.checkInDeadline, checkInEnabled: cfg.checkInEnabled,
       allowSameDayClaim: cfg.allowSameDayClaim, noticeText: cfg.noticeText,
+      warnings: user.role === 'moderator' ? (cfg.warnings || []) : [],
     },
     now: { date: now.date, minutes: now.minutes, timezone: now.tz },
     desks: allDesks.map(function (d) {
@@ -694,6 +757,35 @@ function makeCode_() {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Run once from the editor if times in the Config tab were entered before the
+ * column was pinned to plain text. Rewrites them as "HH:mm" strings and stops
+ * Sheets re-coercing them. Safe to run repeatedly.
+ */
+function repairConfigTimes() {
+  const sh = sheet_(SHEETS.config);
+  sh.getRange('B:B').setNumberFormat('@');
+  const rows = readRows_(SHEETS.config);
+  let fixed = 0;
+  rows.forEach(function (r) {
+    const key = String(r.key || '').trim();
+    if (TIME_KEYS.indexOf(key) < 0) return;
+    const before = r.value;
+    const after = normalizeTime_(before);
+    if (!after) {
+      console.log('Could not read a time from ' + key + ': ' + String(before));
+      return;
+    }
+    if (String(before) !== after) {
+      sh.getRange(r._row, 2).setValue(after);
+      console.log(key + ': ' + String(before) + '  ->  ' + after);
+      fixed++;
+    }
+  });
+  console.log(fixed ? fixed + ' value(s) repaired.' : 'Nothing needed repairing.');
+  installTriggers_();
+}
+
+/**
  * Run this from the editor if you cannot find where the data went. It does not
  * change anything; it just prints which spreadsheet this script is attached to.
  * View > Logs (or the Execution log pane) shows the output.
@@ -739,6 +831,11 @@ function setupSheets() {
     if (!sh) sh = book.insertSheet(name);
     sh.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold');
     sh.setFrozenRows(1);
+    if (name === SHEETS.config) {
+      // Otherwise Sheets turns a typed "17:00" into a time value on the 1899
+      // epoch, which no longer parses as a time.
+      sh.getRange('B:B').setNumberFormat('@');
+    }
     if (name === SHEETS.claims) {
       // Otherwise Sheets turns "2026-08-21" into a Date and reading it back
       // depends on which timezone you ask, which is exactly one off-by-one-day

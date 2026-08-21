@@ -161,6 +161,23 @@ When the real plan arrives:
 Coordinates are percentages, so the map stays correct on a phone and on the
 wall-mounted display.
 
+### A note on times in the Config tab
+
+Type `17:00` into a Sheets cell and Sheets helpfully converts it into a *time
+value*, which the script then receives as a `Date` on the spreadsheet epoch
+(30 December 1899). `setupSheets()` now pins the Config `value` column to plain
+text so this cannot happen, and the script normalises anything it is given —
+`17:00`, `5:00 PM`, `17:00:00`, or a coerced Date — down to `HH:mm`.
+
+If your sheet predates that fix, run **`repairConfigTimes`** once from the Apps
+Script editor. It pins the column and rewrites the values in place.
+
+An unreadable time is now reported rather than silently replaced with the
+built-in default: moderators see it on the board as *"Check the Config tab: …"*.
+The earlier behaviour was worse than the cosmetic bug it came with — a
+`checkInDeadline` of `10:00` that failed to parse quietly enforced `11:00`
+instead, with nothing on screen to say so.
+
 ### Editing the roster later
 
 The roster is read live on every request, so edits to the `Roster` tab take
