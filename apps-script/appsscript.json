@@ -3,28 +3,10 @@
   "dependencies": {},
   "exceptionLogging": "STACKDRIVER",
   "runtimeVersion": "V8",
-
-  "//": [
-    "Scopes are pinned deliberately. Left undeclared, Apps Script infers the",
-    "widest scope that could cover the code and asks for 'See, edit, create and",
-    "delete ALL your Google Sheets spreadsheets' — far more than this needs.",
-    "",
-    "The script only ever reaches its own container via getActiveSpreadsheet();",
-    "it never calls openById/openByUrl and never touches Drive. So the narrow",
-    "'currentonly' scope is the accurate one, and the consent screen then reads",
-    "'only the specific spreadsheet this application is used in'.",
-    "",
-    "script.scriptapp is the daily no-show sweep trigger ('run when you are not",
-    "present'). If you would rather not grant it, delete that scope AND the",
-    "installTriggers_/sweepNoShowsTrigger functions from Code.gs: the sweep also",
-    "runs lazily whenever anyone loads the board, so desks still free up. You",
-    "would only lose the case where nobody opens the page all morning."
-  ],
   "oauthScopes": [
     "https://www.googleapis.com/auth/spreadsheets.currentonly",
     "https://www.googleapis.com/auth/script.scriptapp"
   ],
-
   "webapp": {
     "executeAs": "USER_DEPLOYING",
     "access": "ANYONE_ANONYMOUS"

@@ -59,8 +59,10 @@ The real access codes come from the `Roster` tab once you do the setup below —
    needlessly alarming.
 3. **Pin the permissions before you authorise anything.** In the editor, gear
    icon → tick *Show "appsscript.json" manifest file in editor*, open the file
-   that appears, and replace it with
-   [`apps-script/appsscript.json`](apps-script/appsscript.json). See
+   that appears, and replace its whole contents with
+   [`apps-script/appsscript.json`](apps-script/appsscript.json). Paste it
+   verbatim — Apps Script rejects the manifest outright if it contains any field
+   it does not recognise, so do not add comments to it. See
    [What the script is allowed to touch](#what-the-script-is-allowed-to-touch)
    for why this matters.
 4. Run the `setupSheets` function once (pick it from the dropdown, press Run,

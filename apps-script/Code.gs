@@ -8,6 +8,22 @@
  *
  * Everything the students must not see (access codes, the roster, the write
  * rules) stays here. The GitHub Pages frontend only ever holds the web app URL.
+ *
+ * PERMISSIONS — appsscript.json pins two OAuth scopes deliberately. Left
+ * undeclared, Apps Script infers the widest scope that could cover this code and
+ * asks you to approve "See, edit, create, and delete ALL your Google Sheets
+ * spreadsheets", which is far more than this needs.
+ *
+ *   spreadsheets.currentonly  this sheet only, nothing else in your Drive
+ *   script.scriptapp          the daily no-show sweep trigger
+ *
+ * The narrow Sheets scope is accurate because every read and write goes through
+ * SpreadsheetApp.getActiveSpreadsheet() below — there is no openById, no
+ * openByUrl, and no Drive access anywhere in this file. If you add any of those,
+ * the narrow scope will stop being enough and you will have to widen it.
+ *
+ * The manifest itself cannot carry this note: Apps Script rejects any field it
+ * does not recognise, including the "//" comment convention.
  */
 
 const SHEETS = {
