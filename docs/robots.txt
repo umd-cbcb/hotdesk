@@ -1,0 +1,4 @@
+# The board is behind an access code, but there is no reason for it to be
+# indexed. Keeps the endpoint out of search results.
+User-agent: *
+Disallow: /

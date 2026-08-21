@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+*.log
+
+# Never commit a real roster export or a sheet download.
+*.roster.csv
+*.roster.tsv
+secrets*

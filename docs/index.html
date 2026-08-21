@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Desk booking for the shared CBCB graduate lab.">
+<title>CBCB Hotdesk</title>
+<script>
+  /* Set the theme before first paint. Anything later flashes the wrong one. */
+  (function () {
+    try {
+      var saved = localStorage.getItem('cbcb-hotdesk-theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (e) { /* private browsing */ }
+  })();
+</script>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div id="boot" class="boot">Loading…</div>
+
+<!-- ------------------------------- sign in ------------------------------- -->
+<section id="view-login" class="view login" hidden>
+  <form class="card login-card" id="login-form">
+    <div class="login-mark" aria-hidden="true"></div>
+    <h1 class="login-title">CBCB Hotdesk</h1>
+    <p class="muted small">Enter the access code you were given.</p>
+    <input id="login-code" class="code-input" type="text" inputmode="latin"
+           autocomplete="one-time-code" spellcheck="false" placeholder="ABC123"
+           maxlength="12" aria-label="Access code" autocapitalize="characters">
+    <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+    <p id="login-error" class="error small" role="alert" hidden></p>
+    <p class="muted xsmall">Lost your code? Ask a moderator to re-send it.</p>
+  </form>
+</section>
+
+<!-- -------------------------------- board -------------------------------- -->
+<section id="view-board" class="view" hidden>
+  <header class="topbar">
+    <div class="topbar-left">
+      <span id="site-title" class="topbar-title">CBCB Hotdesk</span>
+      <span id="clock" class="muted xsmall"></span>
+    </div>
+    <div class="topbar-right">
+      <button id="btn-theme" class="btn btn-icon btn-ghost" type="button"
+              aria-label="Theme" title="Theme"></button>
+      <button id="btn-admin" class="btn btn-ghost btn-sm" type="button" hidden>Moderator</button>
+      <span id="whoami" class="muted small"></span>
+      <button id="btn-signout" class="btn btn-ghost btn-sm" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <div id="notice" class="notice" hidden></div>
+  <div id="my-status" class="mystatus" hidden></div>
+
+  <div id="presence" class="presence" hidden>
+    <span class="presence-label">In today</span>
+    <div id="presence-avatars" class="avatars"></div>
+  </div>
+
+  <nav id="daystrip" class="daystrip" aria-label="Choose a day"></nav>
+  <div id="window-banner" class="banner" hidden></div>
+
+  <div class="board-head">
+    <div id="availability" class="availability"></div>
+    <div class="segmented" role="group" aria-label="View">
+      <button class="btn btn-toggle btn-sm is-on" type="button" data-view="map">Floor plan</button>
+      <button class="btn btn-toggle btn-sm" type="button" data-view="list">List</button>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div id="map-wrap" class="map-wrap">
+    <div id="plan-host"></div>
+    <div id="pins" class="pins"></div>
+    <p id="map-missing" class="muted map-missing" hidden></p>
+  </div>
+
+  <div id="list-wrap" class="list-wrap" hidden></div>
+
+  <p class="muted xsmall footer-note" id="rules-note"></p>
+</section>
+
+<!-- -------------------------------- admin -------------------------------- -->
+<section id="view-admin" class="view" hidden>
+  <header class="topbar">
+    <div class="topbar-left"><span class="topbar-title">Moderator tools</span></div>
+    <div class="topbar-right">
+      <button id="btn-theme-admin" class="btn btn-icon btn-ghost" type="button" aria-label="Theme"></button>
+      <button id="btn-back" class="btn btn-ghost btn-sm" type="button">← Back to board</button>
+    </div>
+  </header>
+  <div class="admin-grid">
+    <div class="card">
+      <h2>Settings</h2>
+      <form id="cfg-form" class="stack"></form>
+      <p><button id="cfg-save" class="btn btn-primary" type="button">Save settings</button></p>
+      <p class="muted xsmall">Changes take effect on the next page load for everyone.</p>
+    </div>
+    <div class="card">
+      <h2>People</h2>
+      <div id="roster-table" class="scroll-x"></div>
+      <h3>Add or update someone</h3>
+      <form id="person-form" class="stack">
+        <input name="email" type="email" placeholder="email@umd.edu" required>
+        <input name="name" type="text" placeholder="Full name" required>
+        <input name="lab" type="text" placeholder="Lab / advisor">
+        <select name="role" aria-label="Role">
+          <option value="student">student</option>
+          <option value="moderator">moderator</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Save person</button>
+      </form>
+      <p id="person-result" class="ok small" hidden></p>
+    </div>
+    <div class="card wide">
+      <h2>Desks</h2>
+      <p class="muted xsmall">
+        Place desks visually with the <a href="tools/desk-mapper.html" target="_blank" rel="noopener">desk mapper</a>,
+        then paste the exported rows into the <code>Desks</code> tab of the sheet.
+      </p>
+      <div id="desk-table" class="scroll-x"></div>
+    </div>
+    <div class="card wide">
+      <h2>Upcoming claims</h2>
+      <div id="upcoming-table" class="scroll-x"></div>
+    </div>
+  </div>
+</section>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="js/config.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

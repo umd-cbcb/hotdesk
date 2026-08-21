@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk mapper</title>
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  .mapper { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+  .stage { position: relative; border: 1px solid var(--line); border-radius: var(--radius);
+           background: var(--surface); overflow: hidden; margin: 1rem 0; }
+  .stage img { display: block; width: 100%; height: auto; cursor: crosshair; }
+  .marks { position: absolute; inset: 0; pointer-events: none; }
+  .mark { position: absolute; transform: translate(-50%, -50%); pointer-events: auto;
+          background: var(--mine-bg); color: var(--mine); border: 1px solid currentColor;
+          border-radius: 7px; padding: .15rem .4rem; font-size: .75rem; font-weight: 700;
+          cursor: grab; user-select: none; }
+  .mark.is-drag { cursor: grabbing; opacity: .7; }
+  .bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  textarea { width: 100%; min-height: 180px; font-family: ui-monospace, Menlo, monospace;
+             font-size: .82rem; padding: .6rem; border: 1px solid var(--line);
+             border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+  .hint { max-width: 65ch; }
+</style>
+</head>
+<body>
+<div class="mapper">
+  <h1>Desk mapper</h1>
+  <p class="muted hint">
+    Load your floor plan, click each desk position, and name it. Drag a marker to nudge it,
+    shift-click to delete. Coordinates are stored as percentages, so the map stays correct at
+    any screen size. When you are done, copy the rows into the <code>Desks</code> tab of the
+    Google Sheet, and save the same image as <code>docs/assets/floorplan.png</code> in the repo.
+  </p>
+
+  <div class="bar">
+    <input type="file" id="file" accept="image/*">
+    <input type="text" id="room" placeholder="Room (e.g. 3118)" value="">
+    <input type="text" id="prefix" placeholder="Label prefix" value="D">
+    <button class="btn" id="clear">Clear all</button>
+    <span class="muted small" id="count">0 desks</span>
+  </div>
+
+  <div class="stage" id="stage" hidden>
+    <img id="plan" alt="Floor plan">
+    <div class="marks" id="marks"></div>
+  </div>
+
+  <h2>Rows for the Desks tab</h2>
+  <p class="muted small">Header row included. Select all, copy, then paste into cell A1 of the <code>Desks</code> sheet.</p>
+  <textarea id="out" readonly spellcheck="false"></textarea>
+  <div class="bar" style="margin-top:.5rem">
+    <button class="btn btn-primary" id="copy">Copy to clipboard</button>
+    <span class="muted small" id="copied" hidden>Copied.</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var desks = [];
+  var stage = document.getElementById('stage');
+  var plan = document.getElementById('plan');
+  var marks = document.getElementById('marks');
+  var counter = 0;
+
+  document.getElementById('file').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    plan.src = URL.createObjectURL(f);
+    stage.hidden = false;
+  });
+
+  plan.addEventListener('click', function (e) {
+    var r = plan.getBoundingClientRect();
+    var x = round(((e.clientX - r.left) / r.width) * 100);
+    var y = round(((e.clientY - r.top) / r.height) * 100);
+    var prefix = document.getElementById('prefix').value.trim() || 'D';
+    var suggested = prefix + (++counter);
+    var label = prompt('Desk label:', suggested);
+    if (label === null) { counter--; return; }
+    label = label.trim();
+    if (!label) { counter--; return; }
+    desks.push({
+      deskId: slug(document.getElementById('room').value, label),
+      label: label,
+      room: document.getElementById('room').value.trim(),
+      x: x, y: y,
+    });
+    draw();
+  });
+
+  function slug(room, label) {
+    var base = (room ? room + '-' : '') + label;
+    return base.trim().replace(/\s+/g, '-').replace(/[^A-Za-z0-9._-]/g, '');
+  }
+
+  function round(n) { return Math.round(n * 10) / 10; }
+
+  function draw() {
+    marks.textContent = '';
+    desks.forEach(function (d, i) {
+      var el = document.createElement('div');
+      el.className = 'mark';
+      el.style.left = d.x + '%';
+      el.style.top = d.y + '%';
+      el.textContent = d.label;
+      el.title = d.deskId + ' — drag to move, shift-click to delete';
+      el.addEventListener('mousedown', function (ev) { startDrag(ev, i, el); });
+      el.addEventListener('click', function (ev) {
+        if (!ev.shiftKey) return;
+        ev.stopPropagation();
+        desks.splice(i, 1);
+        draw();
+      });
+      marks.appendChild(el);
+    });
+    document.getElementById('count').textContent = desks.length + ' desk' + (desks.length === 1 ? '' : 's');
+    emit();
+  }
+
+  function startDrag(ev, index, el) {
+    if (ev.shiftKey) return;
+    ev.preventDefault();
+    el.classList.add('is-drag');
+    var rect = plan.getBoundingClientRect();
+    function move(e) {
+      desks[index].x = round(Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)));
+      desks[index].y = round(Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100)));
+      el.style.left = desks[index].x + '%';
+      el.style.top = desks[index].y + '%';
+    }
+    function up() {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      draw();
+    }
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  }
+
+  function emit() {
+    var header = ['deskId', 'label', 'room', 'x', 'y', 'status', 'reservedFor', 'notes'];
+    var lines = [header.join('\t')];
+    desks.forEach(function (d) {
+      lines.push([d.deskId, d.label, d.room, d.x, d.y, 'active', '', ''].join('\t'));
+    });
+    document.getElementById('out').value = lines.join('\n');
+  }
+
+  document.getElementById('clear').addEventListener('click', function () {
+    if (!desks.length || confirm('Remove all placed desks?')) {
+      desks = []; counter = 0; draw();
+    }
+  });
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var ta = document.getElementById('out');
+    ta.select();
+    navigator.clipboard.writeText(ta.value).then(function () {
+      var el = document.getElementById('copied');
+      el.hidden = false;
+      setTimeout(function () { el.hidden = true; }, 2000);
+    });
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>

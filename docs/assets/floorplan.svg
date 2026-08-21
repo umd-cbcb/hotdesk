@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 730" width="1100" height="730"
+     role="img" aria-label="Placeholder plan of IRB 3112: 29 desks">
+  <style>
+    /* var() first so the plan follows the page theme once inlined; the literal
+       fallback keeps it readable when the file is opened on its own. */
+    .wall   { fill: none; stroke: var(--plan-wall, #8d95a1); stroke-width: 6; }
+    .spine  { fill: none; stroke: var(--plan-edge, #ccd2da); stroke-width: 3; }
+    .desk   { fill: var(--plan-desk, #eef1f5); stroke: var(--plan-edge, #c8cfd8); stroke-width: 2; }
+    .chair  { fill: none; stroke: var(--plan-edge, #c8cfd8); stroke-width: 2; }
+    .zone   { fill: var(--plan-text, #7b8391); font: 600 17px ui-sans-serif, Helvetica, Arial, sans-serif; }
+    .room   { fill: var(--plan-text, #7b8391); font: 700 22px ui-sans-serif, Helvetica, Arial, sans-serif; }
+    .note   { fill: var(--plan-text, #7b8391); opacity: .7;
+               font: 14px ui-sans-serif, Helvetica, Arial, sans-serif; }
+    .window { fill: none; stroke: var(--plan-edge, #b9c6d6); stroke-width: 7; }
+    .door   { fill: none; stroke: var(--plan-edge, #c8cfd8); stroke-width: 2; }
+  </style>
+
+  <rect width="1100" height="730" fill="var(--plan-paper, #ffffff)"/>
+
+  <!-- walls: one open span, so the doorway gap is not painted back over -->
+  <path class="wall" d="M 190 660 L 40 660 L 40 66 L 1060 66 L 1060 660 L 280 660"/>
+  <line class="window" x1="220" y1="66" x2="440" y2="66"/>
+  <line class="window" x1="600" y1="66" x2="820" y2="66"/>
+  <path class="door" d="M 280 660 L 280 572 A 88 88 0 0 1 192 660"/>
+
+  <!-- back-to-back spines of the two central rows -->
+  <line class="spine" x1="380" y1="98" x2="380" y2="627"/>
+  <line class="spine" x1="720" y1="98" x2="720" y2="627"/>
+
+  <g class="desk">
+    <rect x="46" y="162.5" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="143" cy="205" r="13"/>
+    <rect x="46" y="267.5" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="143" cy="310" r="13"/>
+    <rect x="46" y="372.5" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="143" cy="415" r="13"/>
+    <rect x="46" y="477.5" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="143" cy="520" r="13"/>
+    <rect x="300" y="110" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="283" cy="152.5" r="13"/>
+    <rect x="300" y="215" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="283" cy="257.5" r="13"/>
+    <rect x="300" y="320" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="283" cy="362.5" r="13"/>
+    <rect x="300" y="425" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="283" cy="467.5" r="13"/>
+    <rect x="300" y="530" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="283" cy="572.5" r="13"/>
+    <rect x="380" y="110" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="477" cy="152.5" r="13"/>
+    <rect x="380" y="215" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="477" cy="257.5" r="13"/>
+    <rect x="380" y="320" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="477" cy="362.5" r="13"/>
+    <rect x="380" y="425" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="477" cy="467.5" r="13"/>
+    <rect x="380" y="530" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="477" cy="572.5" r="13"/>
+    <rect x="640" y="110" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="623" cy="152.5" r="13"/>
+    <rect x="640" y="215" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="623" cy="257.5" r="13"/>
+    <rect x="640" y="320" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="623" cy="362.5" r="13"/>
+    <rect x="640" y="425" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="623" cy="467.5" r="13"/>
+    <rect x="640" y="530" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="623" cy="572.5" r="13"/>
+    <rect x="720" y="110" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="817" cy="152.5" r="13"/>
+    <rect x="720" y="215" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="817" cy="257.5" r="13"/>
+    <rect x="720" y="320" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="817" cy="362.5" r="13"/>
+    <rect x="720" y="425" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="817" cy="467.5" r="13"/>
+    <rect x="720" y="530" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="817" cy="572.5" r="13"/>
+    <rect x="974" y="110" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="957" cy="152.5" r="13"/>
+    <rect x="974" y="215" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="957" cy="257.5" r="13"/>
+    <rect x="974" y="320" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="957" cy="362.5" r="13"/>
+    <rect x="974" y="425" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="957" cy="467.5" r="13"/>
+    <rect x="974" y="530" width="80" height="85" rx="4"/>
+    <circle class="chair" cx="957" cy="572.5" r="13"/>
+  </g>
+
+  <text class="room" x="48" y="54">IRB 3112</text>
+
+  <g class="zone">
+    <text x="48" y="108">Left wall</text>
+    <text x="300" y="108">Row 1</text>
+    <text x="640" y="108">Row 2</text>
+    <text x="945" y="108">Right wall</text>
+  </g>
+  <text class="note" x="192" y="686">door</text>
+  <text class="note" x="550.0" y="722" text-anchor="middle">
+    Placeholder plan of IRB 3112 — 29 desks. Replace with the real floor plan and re-place desks with tools/desk-mapper.html
+  </text>
+</svg>
