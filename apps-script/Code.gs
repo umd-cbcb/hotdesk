@@ -704,12 +704,17 @@ function setupSheets() {
 
   const roster = book.getSheetByName(SHEETS.roster);
   if (roster.getLastRow() < 2) {
-    roster.appendRow([Session.getActiveUser().getEmail(), 'Me', makeCode_(), 'moderator', '', 'TRUE']);
+    // Under the pinned narrow scopes this can come back empty; seeding a
+    // placeholder is better than failing setup over a convenience.
+    let me = '';
+    try { me = Session.getActiveUser().getEmail() || ''; } catch (err) { me = ''; }
+    roster.appendRow([me || 'you@umd.edu', 'Me', makeCode_(), 'moderator', '', 'TRUE']);
   }
 
   secret_();
   installTriggers_();
-  var done = 'Setup complete.\n\nYour moderator code is in the Roster tab.\n' +
+  var done = 'Setup complete.\n\nYour moderator code is in the Roster tab — check\n' +
+    'that the email on that row is yours before you sign in.\n\n' +
     'Next: Deploy > New deployment > Web app (Execute as Me, Access: Anyone).';
   console.log(done);
   try { SpreadsheetApp.getUi().alert(done); } catch (err) { /* no UI when run headless */ }

@@ -53,12 +53,22 @@ The real access codes come from the `Roster` tab once you do the setup below —
 
 1. Make a new Google Sheet. Name it something like `CBCB Hotdesk Data`.
 2. **Extensions → Apps Script**. Delete the placeholder file and paste in
-   [`apps-script/Code.gs`](apps-script/Code.gs).
-3. Run the `setupSheets` function once (pick it from the dropdown, press Run,
+   [`apps-script/Code.gs`](apps-script/Code.gs). Rename the project from
+   *Untitled project* to `CBCB Hotdesk` — the project name is what the consent
+   screen shows, and "Untitled project wants access to your Google Account" is
+   needlessly alarming.
+3. **Pin the permissions before you authorise anything.** In the editor, gear
+   icon → tick *Show "appsscript.json" manifest file in editor*, open the file
+   that appears, and replace it with
+   [`apps-script/appsscript.json`](apps-script/appsscript.json). See
+   [What the script is allowed to touch](#what-the-script-is-allowed-to-touch)
+   for why this matters.
+4. Run the `setupSheets` function once (pick it from the dropdown, press Run,
    approve the permission prompt). It creates the `Config`, `Roster`, `Desks`,
    `Claims` and `Audit` tabs, seeds sensible defaults, adds you to the roster as a
-   moderator, and installs the daily no-show sweep.
-4. **Deploy → New deployment → Web app**
+   moderator, and installs the daily no-show sweep. Check that the email on your
+   roster row is right before signing in.
+5. **Deploy → New deployment → Web app**
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**
    - Copy the `…/exec` URL.
@@ -169,6 +179,54 @@ Then open `http://localhost:8000/`. The API is remote, so this hits your live
 sheet — use `dev/demo-server.js` instead if you just want to poke at the UI.
 
 ---
+
+## What the script is allowed to touch
+
+Apps Script infers OAuth scopes from your code, and it is deliberately
+conservative: a project that declares nothing gets asked to approve **"See, edit,
+create, and delete all your Google Sheets spreadsheets."** That is far more than
+this needs, and you should not wave it through.
+
+The code only ever reaches its own container, through
+`SpreadsheetApp.getActiveSpreadsheet()`. It never calls `openById` or
+`openByUrl`, and it never touches Drive, Gmail, or Calendar — you can check with:
+
+```bash
+grep -nE '\b(DriveApp|GmailApp|MailApp|CalendarApp|UrlFetchApp|openById|openByUrl)\b' apps-script/Code.gs
+```
+
+So [`appsscript.json`](apps-script/appsscript.json) pins the two accurate scopes
+instead of letting them be guessed:
+
+| Scope | Consent screen wording | Why |
+| --- | --- | --- |
+| `spreadsheets.currentonly` | "only the specific spreadsheet this application is used in" | Read and write the hotdesk sheet — and nothing else in your Drive |
+| `script.scriptapp` | "run when you are not present" | The daily 11am no-show sweep |
+
+**Verify it took.** Before authorising, the consent screen should say *only the
+specific spreadsheet*, not *all your Google Sheets spreadsheets*. If it still says
+"all", the manifest did not save — re-check step 3 and make sure you replaced the
+file rather than adding a second one.
+
+**If the narrow scope turns out not to work** (you would see an authorisation
+error the first time the deployed web app tries to read the sheet, not at setup
+time), widen just the first entry to
+`https://www.googleapis.com/auth/spreadsheets` and re-deploy. That is the exact
+permission Google was going to ask for anyway, so you lose nothing by trying the
+narrow one first.
+
+**If you would rather not grant the trigger scope at all**, drop
+`script.scriptapp` from the manifest and delete `installTriggers_` and
+`sweepNoShowsTrigger` from `Code.gs`. The no-show sweep also runs lazily whenever
+anyone loads the board, so desks still free up; you would only lose the case where
+nobody opens the page all morning.
+
+Two things worth knowing regardless. Changing scopes requires a **new
+deployment** and a fresh authorisation — an existing grant does not shrink on its
+own, so revoke the old one at
+[myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+And this consent screen is yours alone: the web app runs as you, so students never
+see it and never grant anything.
 
 ## Look and feel
 
