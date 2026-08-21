@@ -70,10 +70,19 @@ The real access codes come from the `Roster` tab once you do the setup below —
 
 ### 2. Publish the frontend
 
-1. Put this repo on GitHub.
-2. Edit [`docs/js/config.js`](docs/js/config.js) and paste the `/exec` URL into `apiUrl`.
-3. **Settings → Pages → Source: Deploy from a branch**, branch `main`, folder `/docs`.
-4. Your site appears at `https://<user>.github.io/<repo>/`.
+1. Edit [`docs/js/config.js`](docs/js/config.js) and paste the `/exec` URL into `apiUrl`.
+2. **Settings → Pages → Source: Deploy from a branch**, branch `main`, folder `/docs`.
+3. The site appears at <https://umd-cbcb.github.io/hotdesk/>.
+
+> **The repository has to be public.** GitHub Pages only builds from a private
+> repository on a paid plan, and `umd-cbcb` is on the free org plan. Note also
+> that a Pages site is publicly reachable on *every* plan below Enterprise Cloud
+> — paying would hide the source, not the site. Since the repo holds no secrets
+> by design, public is the honest choice rather than a compromise.
+>
+> What going public does expose is the Apps Script URL, so `apiLogin_` throttles
+> globally: 20 failed codes in 10 minutes and sign-in pauses for everyone until
+> the window rolls over. A student mistyping their code never gets near that.
 
 ### 3. Add your floor plan and desks
 
@@ -126,6 +135,44 @@ sheet — use `dev/demo-server.js` instead if you just want to poke at the UI.
 
 ---
 
+## Look and feel
+
+There is no established design system for desk booking, so this is a small
+purpose-built one, defined entirely as tokens at the top of
+[`docs/css/app.css`](docs/css/app.css). Two rules hold it together:
+
+**Brand colour never competes with status colour.** UMD red and gold appear only
+as the rule under the masthead and on destructive actions. If red also meant
+"a desk", red would read as *unavailable* and the board would mislead you at a
+glance — so desk states get their own semantic ramp.
+
+**Status is never carried by hue alone.** Each state pairs a colour with a border
+treatment and a glyph, so the board still parses with any form of colour
+blindness, on a projector, or in sunlight by the window:
+
+| State | Colour | Border | Glyph |
+| --- | --- | --- | --- |
+| Free | green | solid | — |
+| Yours | solid blue fill | solid | ★ |
+| In use | grey | solid | ● |
+| Claimed, not arrived | amber | **dashed** | ○ |
+| Unavailable | grey | **hatched** | ✕ |
+
+Every foreground/background pair is at least 4.5:1 in both themes (measured, not
+estimated). A legend on the board teaches the key.
+
+### Light, dark and system
+
+The button in the masthead cycles **system → light → dark**. "System" is the
+default and stores nothing; an explicit choice is saved to `localStorage` and
+wins over the OS in both directions. A tiny script in `<head>` applies the stored
+choice before first paint, so there is no flash of the wrong theme.
+
+The placeholder floor plan is injected into the page as inline SVG rather than an
+`<img>`, which lets it read the same `--plan-*` tokens and follow the theme. A
+raster plan cannot do that, so when you swap in a photo or scan of the real room
+it keeps a white sheet under it in both themes — the same compromise maps make.
+
 ## How the booking rules work
 
 | Setting | Default | Meaning |
@@ -169,10 +216,13 @@ available at 11am to whoever actually walked in.
 | `apps-script/appsscript.json` | Web app deployment manifest |
 | `docs/index.html` | Single page: sign-in, board, moderator tools |
 | `docs/js/config.js` | The only file you must edit — API URL and floor plan path |
+| `docs/css/app.css` | Design tokens and components; the palette lives at the top |
+| `docs/js/theme.js` | The light / dark / system control |
 | `docs/js/api.js` | Request wrapper (kept "simple" so Apps Script CORS works) |
 | `docs/js/app.js` | Board: day strip, floor plan, list, claim/release/check-in |
 | `docs/js/admin.js` | Moderator settings, roster, desks, upcoming claims |
 | `docs/tools/desk-mapper.html` | Click-to-place desk coordinate editor |
+| `docs/robots.txt` | Keeps the board out of search results |
 | `docs/assets/floorplan.svg` | Placeholder plan of IRB 3112 (generated) |
 | `docs/assets/demo-desks.tsv` | The 29 desks, with coordinates matching that plan (generated) |
 | `dev/make-floorplan.py` | Regenerates both of the above from one layout description |
@@ -188,3 +238,7 @@ available at 11am to whoever actually walked in.
 - Access codes are bearer secrets. They are fine for a lab; they are not fine for
   anything involving grades, money, or personal data. If this ever needs to be
   stronger, the login step is the only piece that has to change.
+- The failed-login throttle is global, not per person, so a determined nuisance
+  could lock sign-in for ten minutes at a time. That is the right trade for a lab
+  board; Apps Script cannot see client IPs, so per-user throttling is not
+  available without adding real accounts.
