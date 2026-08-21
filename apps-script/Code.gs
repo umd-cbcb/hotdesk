@@ -295,7 +295,11 @@ function requireUser_(p) {
   const email = emailFromToken_(p.token);
   if (!email) throw new UserError('Your session expired. Please sign in again.');
   const found = people_().filter(function (x) { return x.email === email; })[0];
-  if (!found || !found.active) throw new UserError('Your account is no longer active.');
+  // Distinguish "you were switched off" from "the address on your roster row
+  // changed under you", which otherwise both read as a deactivation and send
+  // people to a moderator for a problem they can fix by signing in again.
+  if (!found) throw new UserError('We could not find your account. Please sign in again with your code.');
+  if (!found.active) throw new UserError('Your account has been deactivated. Ask a moderator.');
   return found;
 }
 

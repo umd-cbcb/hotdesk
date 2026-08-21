@@ -161,6 +161,24 @@ When the real plan arrives:
 Coordinates are percentages, so the map stays correct on a phone and on the
 wall-mounted display.
 
+### Editing the roster later
+
+The roster is read live on every request, so edits to the `Roster` tab take
+effect immediately — nothing to redeploy, no cache to clear.
+
+Two things to watch:
+
+- **`email` is the identity key.** Claims, the audit log and the shown-up ratio
+  are all keyed on it. Changing someone's address orphans their existing rows, so
+  if they already hold desks, update the `email` column in `Claims` to match, or
+  release those claims first. Keep addresses unique across the roster.
+- **Changing an address logs that person out.** Their session token carries the
+  old address, so the next request fails and they simply sign in again with the
+  same code. The code itself does not change.
+
+To retire someone, set `active` to `FALSE` rather than deleting the row — that
+keeps their history intact for the occupancy numbers.
+
 ### 4. Add students
 
 Sign in with your own code (it is in the `Roster` tab), open **Moderator**, and add
