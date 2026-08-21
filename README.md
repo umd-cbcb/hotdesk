@@ -63,10 +63,29 @@ The real access codes come from the `Roster` tab once you do the setup below —
    - *Who has access*: **Anyone**
    - Copy the `…/exec` URL.
 
-> "Anyone" sounds alarming but is correct: it means the endpoint is reachable
-> without a Google login. Every request still has to present a valid access code,
-> which is checked server-side against the roster. Without this setting Google
-> serves an HTML sign-in page instead of JSON and the site cannot work.
+> **"Anyone" is required — do not change it to a UMD-only setting.** It sounds
+> alarming, but it only means the endpoint is reachable without a *Google* login.
+> Every request still has to present a valid access code, checked server-side
+> against the roster.
+>
+> Restricting access to the university domain looks like an upgrade and is
+> actually a break. Two things fail:
+>
+> 1. An unauthenticated `fetch` is redirected to `accounts.google.com`, so the
+>    page receives an HTML login screen instead of JSON.
+> 2. Apps Script only sends `Access-Control-Allow-Origin: *` for anonymous
+>    deployments, and `*` is invalid for credentialed cross-origin requests. A
+>    browser on `umd-cbcb.github.io` therefore cannot send Google's cookies to
+>    `script.google.com` at all. No setting fixes this; it is how CORS works.
+>
+> Wanting real UMD identity is reasonable — shared codes never expire and never
+> offboard. The way to get it *without* breaking the static site is Google
+> Sign-In on the page (the page obtains an ID token; Apps Script verifies its
+> signature and checks the email domain before issuing a session), with the web
+> app still deployed as "Anyone". That needs an OAuth client ID, and it needs
+> your students to actually live in one Google Workspace domain — worth checking
+> with campus IT, since UMD has historically split Google and Microsoft across
+> populations. Deferred for the pilot.
 
 ### 2. Publish the frontend
 
