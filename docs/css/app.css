@@ -52,6 +52,7 @@
 
   /* the floor plan, inlined as SVG so it follows the theme */
   --plan-paper: #ffffff;
+  --plan-ink:   #3f4753;   /* the facilities linework */
   --plan-wall:  #8d95a1;
   --plan-desk:  #eef1f5;
   --plan-edge:  #c8cfd8;
@@ -113,6 +114,7 @@
   --off-fg:   #98a1b0;  --off-bg:   #1b212b;  --off-bd:   #333c49;
 
   --plan-paper: #131820;
+  --plan-ink:   #8792a3;
   --plan-wall:  #4d5766;
   --plan-desk:  #1c232d;
   --plan-edge:  #2f3846;
@@ -135,7 +137,7 @@
     --taken-fg: #98a1b0; --taken-bg: #1e242e; --taken-bd: #333c49;
     --hold-fg: #e8b76e; --hold-bg: #2d2415; --hold-bd: #6d5426;
     --off-fg: #98a1b0; --off-bg: #1b212b; --off-bd: #333c49;
-    --plan-paper: #131820; --plan-wall: #4d5766; --plan-desk: #1c232d;
+    --plan-paper: #131820; --plan-ink: #8792a3; --plan-wall: #4d5766; --plan-desk: #1c232d;
     --plan-edge: #2f3846; --plan-text: #79838f;
     --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 6px 18px rgb(0 0 0 / .35);
     --shadow-lg: 0 8px 32px rgb(0 0 0 / .55);

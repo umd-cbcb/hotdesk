@@ -42,7 +42,7 @@ const config = {
   noticeText: 'Demo mode — nothing here is saved.',
 };
 
-const desks = fs.readFileSync(path.join(ROOT, 'assets', 'demo-desks.tsv'), 'utf8')
+const desks = fs.readFileSync(path.join(ROOT, 'assets', 'desks.tsv'), 'utf8')
   .trim().split('\n').slice(1).map((line) => {
     const c = line.split('\t');
     return {
@@ -122,14 +122,14 @@ function seed() {
   });
   // A morning that looks like a real one: a couple of people in, one who booked
   // but has not shown up yet, and one booking already placed for tomorrow.
-  add(t, 'IRB3112-A1', 'priya@umd.edu', true);
-  add(t, 'IRB3112-C3', 'marcus@umd.edu', false);
-  add(t, 'IRB3112-R2', 'sam@umd.edu', true);
-  add(addDays(t, 1), 'IRB3112-B4', 'lin@umd.edu', false);
+  add(t, 'IRB3112-07', 'priya@umd.edu', true);
+  add(t, 'IRB3112-18', 'marcus@umd.edu', false);
+  add(t, 'IRB3112-26', 'sam@umd.edu', true);
+  add(addDays(t, 1), 'IRB3112-12', 'lin@umd.edu', false);
   // Some history, so the "showed up for N of M" line has something to say.
   for (let i = 2; i <= 9; i++) {
     claims.push({
-      claimId: 'hist' + (nextId++), date: addDays(t, -i), deskId: 'IRB3112-B1',
+      claimId: 'hist' + (nextId++), date: addDays(t, -i), deskId: 'IRB3112-05',
       email: 'priya@umd.edu', claimedAt: now,
       checkedInAt: i === 4 ? '' : now, releasedAt: '',
       status: i === 4 ? 'noshow' : 'released',

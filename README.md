@@ -24,10 +24,10 @@ Open <http://localhost:8931> and sign in with one of the codes it prints:
 | Code | Who |
 | --- | --- |
 | `ROB123` | Rob — **moderator**, so the Moderator button appears |
-| `PRIYA1` | Priya Raman — has A1 today and has checked in |
-| `MARC01` | Marcus Hale — booked C3 today but never checked in |
-| `LINW01` | Lin Wei — has B4 booked for tomorrow |
-| `SAM001` | Sam Okafor — has R2 today, checked in |
+| `PRIYA1` | Priya Raman — has desk 7 today and has checked in |
+| `MARC01` | Marcus Hale — booked desk 18 today but never checked in |
+| `LINW01` | Lin Wei — has desk 12 booked for tomorrow |
+| `SAM001` | Sam Okafor — has desk 26 today, checked in |
 
 This is a faithful in-memory stand-in for the Apps Script API: the same claim
 windows, the same one-desk-per-person-per-day rule, the same cap, the same
@@ -38,8 +38,8 @@ Two things worth doing while it is running:
 - **Open a private window and sign in as someone else.** Claim the same desk from
   both and watch the loser get *"… was just claimed by someone else."* That is
   the contention case, which is the one people will ask you about.
-- **Run it after 11am.** Marcus's C3 will already be back in the pool when you
-  load the board. That is the no-show sweep, and it is the whole reason the
+- **Run it after 11am.** Marcus's desk 18 will already be back in the pool when
+  you load the board. That is the no-show sweep, and it is the whole reason the
   system does anything your current spreadsheet does not.
 
 The real access codes come from the `Roster` tab once you do the setup below —
@@ -113,10 +113,10 @@ not secrecy — anyone who loads the site can read it in devtools — but it kee
 URL out of GitHub code search and off the scrapers that trawl public repositories,
 and rotating it later is a settings change rather than a commit.
 
-The workflow also refuses to deploy a bundle whose floor plan and desk coordinates
-disagree with their generator, which is the one way a hand-edit could silently put
-every pin in the wrong place. That check stands down by itself once you drop in a
-real floor plan (see step 3).
+The workflow also refuses to deploy a bundle whose desk list and map disagree —
+a desk positioned off the map, a duplicate id, or a count that does not match what
+the plan says. The plan itself is imported from a PDF that is not in the repo, so
+CI cannot regenerate it; it checks the invariant it can.
 
 > **The repository has to be public.** GitHub Pages only builds from a private
 > repository on a paid plan, and `umd-cbcb` is on the free org plan. Note also
@@ -128,55 +128,51 @@ real floor plan (see step 3).
 > codes in 10 minutes and sign-in pauses for everyone until the window rolls
 > over. A student mistyping their code never gets near that.
 
-### 3. Add your floor plan and desks
+### 3. Load the floor plan and desks
 
-A placeholder plan of **IRB 3112** ships with the repo — 29 desks, laid out as
-4 along the left wall, two back-to-back rows of 10 down the middle, and 5 along
-the right wall. Desks are labelled `L1`–`L4`, `A1`–`A5` / `B1`–`B5` (row 1),
-`C1`–`C5` / `D1`–`D5` (row 2), and `R1`–`R5`, so a desk is one short thing you
-can say out loud. The full ids carry the room (`IRB3112-C3`) in case a second
-room joins later.
+The map is the real facilities drawing for IRB 3112, imported straight from their
+PDF, and the desks carry **facilities' own numbers, 0–28**. That matters more than
+it sounds: when a student says "I'm at 17", that is the number painted on the
+plan the building people use, not a scheme we invented.
 
-To adjust the placeholder — different counts, a different arrangement — edit
-`LAYOUT` at the top of `dev/make-floorplan.py` and re-run it:
+To load them, copy
+[`docs/assets/desks.tsv`](docs/assets/desks.tsv) into cell **A1** of the `Desks`
+tab. Easiest via the raw file:
+<https://raw.githubusercontent.com/umd-cbcb/hotdesk/main/docs/assets/desks.tsv>
+
+Desks are read live, so the board picks them up on the next reload.
+
+#### When facilities sends an updated plan
 
 ```bash
-python3 dev/make-floorplan.py
+python3 dev/import-floorplan.py ~/Downloads/ThirdFloor-Room-3112.pdf
 ```
 
-It rewrites both the SVG and `docs/assets/demo-desks.tsv` from the same
-description, so the picture and the coordinates cannot drift apart.
+That rewrites both `docs/assets/floorplan.svg` and `docs/assets/desks.tsv`, then
+you re-paste the TSV into the `Desks` tab. Nothing is placed by hand.
 
-When the real plan arrives:
+The importer works because Inkscape's PDF import keeps the original text in
+`aria-label`, and the desk numbers are the only red-filled objects in the
+drawing — so each desk's number *and* position come out of the drawing itself.
+Positions are the centres of the number glyphs, cross-checked against
+`inkscape --query-all`. It needs Inkscape (`brew install --cask inkscape`).
 
-1. Save it as `docs/assets/floorplan.png` and set the `HOTDESK_FLOORPLAN`
-   repository variable to `assets/floorplan.png`.
-2. Open `tools/desk-mapper.html`, load the same image, click each desk, name it,
-   drag to nudge.
-3. Copy the generated rows into cell **A1** of the `Desks` tab.
-4. Delete `docs/assets/floorplan.svg`, or just remove its
-   `generated by dev/make-floorplan.py` marker line. That tells CI you have taken
-   the plan over by hand and it stops checking it against the generator.
+Two things it deliberately does:
 
-Coordinates are percentages, so the map stays correct on a phone and on the
-wall-mounted display.
+- **Crops to the linework, clamped to the page.** The source PDF is a drawing of
+  the whole third floor with the page acting as a crop; only what was visible is
+  published.
+- **Strips the red numbers from the map.** The board's own pins carry them, so
+  keeping both would double them up.
 
-### A note on times in the Config tab
+Keep the source PDF out of the repository. The published map is one room; the
+original file is a building drawing, and there is no reason to put that on a
+public site.
 
-Type `17:00` into a Sheets cell and Sheets helpfully converts it into a *time
-value*, which the script then receives as a `Date` on the spreadsheet epoch
-(30 December 1899). `setupSheets()` now pins the Config `value` column to plain
-text so this cannot happen, and the script normalises anything it is given —
-`17:00`, `5:00 PM`, `17:00:00`, or a coerced Date — down to `HH:mm`.
-
-If your sheet predates that fix, run **`repairConfigTimes`** once from the Apps
-Script editor. It pins the column and rewrites the values in place.
-
-An unreadable time is now reported rather than silently replaced with the
-built-in default: moderators see it on the board as *"Check the Config tab: …"*.
-The earlier behaviour was worse than the cosmetic bug it came with — a
-`checkInDeadline` of `10:00` that failed to parse quietly enforced `11:00`
-instead, with nothing on screen to say so.
+> **Replacing an existing desk list?** Clear the `Claims` tab at the same time.
+> Claims reference desks by id, so a claim pointing at a desk id that no longer
+> exists becomes invisible on the board while still counting against that
+> person's one-desk-per-day limit.
 
 ### Editing the roster later
 
@@ -298,10 +294,13 @@ default and stores nothing; an explicit choice is saved to `localStorage` and
 wins over the OS in both directions. A tiny script in `<head>` applies the stored
 choice before first paint, so there is no flash of the wrong theme.
 
-The placeholder floor plan is injected into the page as inline SVG rather than an
-`<img>`, which lets it read the same `--plan-*` tokens and follow the theme. A
-raster plan cannot do that, so when you swap in a photo or scan of the real room
-it keeps a white sheet under it in both themes — the same compromise maps make.
+The floor plan is injected into the page as inline SVG rather than an `<img>`,
+which lets its linework read the `--plan-ink` and `--plan-paper` tokens and follow
+the theme — dark ink on white, light ink on near-black, at 9.4:1 and 5.7:1. Its
+strokes use `vector-effect: non-scaling-stroke`, so the drawing stays a true
+hairline on a phone and on a wall display alike. A raster plan cannot follow a
+theme, so if one is ever configured instead it keeps a white sheet under it in
+both themes — the same compromise maps make.
 
 ## How the booking rules work
 
@@ -353,9 +352,10 @@ available at 11am to whoever actually walked in.
 | `docs/js/admin.js` | Moderator settings, roster, desks, upcoming claims |
 | `docs/tools/desk-mapper.html` | Click-to-place desk coordinate editor |
 | `docs/robots.txt` | Keeps the board out of search results |
-| `docs/assets/floorplan.svg` | Placeholder plan of IRB 3112 (generated) |
-| `docs/assets/demo-desks.tsv` | The 29 desks, with coordinates matching that plan (generated) |
-| `dev/make-floorplan.py` | Regenerates both of the above from one layout description |
+| `docs/assets/floorplan.svg` | The facilities plan of IRB 3112, imported (do not hand-edit) |
+| `docs/assets/desks.tsv` | The 29 desks and their map positions, imported |
+| `dev/import-floorplan.py` | Rebuilds both of the above from the facilities PDF |
+| `dev/check-desks.py` | CI check that the desk list and the map agree |
 | `dev/demo-server.js` | Offline stand-in for the API, for trying the site out |
 | `.github/workflows/pages.yml` | Checks the bundle, injects the endpoint, deploys to Pages |
 
