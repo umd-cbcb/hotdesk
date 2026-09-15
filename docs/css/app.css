@@ -504,6 +504,28 @@ tbody tr:hover { background: var(--surface-2); }
 .cfg-row { display: grid; grid-template-columns: 1fr 150px; gap: var(--s2); align-items: center; }
 .cfg-row label { font-size: var(--t-sm); color: var(--ink-2); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.bar { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+textarea {
+  font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--t-sm);
+  padding: .5rem .65rem; border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--ink);
+  resize: vertical; width: 100%;
+}
+input[type="file"] { font-size: var(--t-sm); color: var(--ink-3); }
+
+/* Import preview: the outcome per row has to be readable at a glance, because
+   this is the one action that can rewrite the whole roster at once. */
+.tag {
+  display: inline-block; padding: .05rem .4rem; border-radius: var(--radius-pill);
+  font-size: var(--t-xs); font-weight: 650; border: 1px solid currentColor;
+}
+.tag-add  { color: var(--free-fg);  background: var(--free-bg); }
+.tag-update { color: var(--accent); background: var(--accent-soft); }
+.tag-skip { color: var(--hold-fg);  background: var(--hold-bg); }
+.import-summary { margin: var(--s3) 0 var(--s2); font-weight: 600; }
+tr.is-inactive td { opacity: .55; }
+tr.is-inactive td:first-child { text-decoration: line-through; }
 
 /* ==========================================================================
    misc

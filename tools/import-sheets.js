@@ -19,28 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const D = require('../server/domain');
 const { open } = require('../server/db');
-
-/** RFC 4180: quoted fields, embedded commas, doubled quotes, CRLF. */
-function parseCsv(text) {
-  const rows = [];
-  let row = [], field = '', quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else quoted = false;
-      } else field += c;
-      continue;
-    }
-    if (c === '"') { quoted = true; }
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c !== '\r') { field += c; }
-  }
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
-  return rows.filter((r) => r.some((cell) => String(cell).trim() !== ''));
-}
+const { parseCsv } = require('../server/csv');
 
 /**
  * Claims dates should already be plain YYYY-MM-DD text, but a sheet created
@@ -195,4 +174,3 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseCsv };

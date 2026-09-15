@@ -13,6 +13,7 @@ const D = require('./domain');
 const S = require('./store');
 const { isConflict } = require('./db');
 const { mintToken, emailFromToken, Throttle, makeCode } = require('./auth');
+const { parseTable } = require('./csv');
 
 class UserError extends Error {
   constructor(message) { super(message); this.isUserError = true; }
@@ -325,9 +326,170 @@ function createApi({ db, secret, now = () => new Date() }) {
         'ON CONFLICT(email) DO UPDATE SET name = excluded.name, code = excluded.code, ' +
         'role = excluded.role, lab = excluded.lab, active = excluded.active',
         { e: email, n: String(person.name || '').trim(), c: code, r: role,
-          l: String(person.lab || '').trim(), a: person.active === false ? 0 : 1 });
+          // Only an explicit flag changes this; otherwise keep what is there,
+          // or default a brand-new person to active. The moderator form does not
+          // send it, and re-saving someone used to quietly reactivate them.
+          l: String(person.lab || '').trim(),
+          a: person.active === undefined
+               ? (existing ? (existing.active ? 1 : 0) : 1)
+               : (person.active === false ? 0 : 1) });
       S.audit(db, mod.email, 'save_person', email);
       return { saved: email, code };
+    },
+
+    /**
+     * Bulk-add people from a CSV.
+     *
+     * Always run with dryRun first from the UI: this is the one moderator action
+     * that can touch the whole roster at once, and a mis-mapped column should be
+     * visible before it is applied, not after.
+     *
+     * Recognised columns (case and punctuation insensitive): email, name, lab,
+     * role, code. Only email is required.
+     */
+    adminImportRoster(p) {
+      // Rosters arrive from whatever the department sent: "Full Name", "E-mail",
+      // "Advisor". Accept the obvious synonyms rather than making someone edit
+      // the header before the file will work.
+      const FIELDS = {
+        email: ['email', 'emailaddress', 'umdemail', 'mail'],
+        name:  ['name', 'fullname', 'displayname', 'studentname', 'person'],
+        lab:   ['lab', 'group', 'advisor', 'pi', 'supervisor'],
+        role:  ['role', 'type', 'access'],
+        code:  ['code', 'accesscode', 'logincode'],
+      };
+      const pick = (row, field) => {
+        for (const key of FIELDS[field]) {
+          if (row[key] !== undefined && String(row[key]).trim() !== '') return String(row[key]).trim();
+        }
+        return '';
+      };
+      const mod = requireModerator(p);
+      const dryRun = p.dryRun !== false;
+      const { header, rows } = parseTable(p.csv || '');
+      if (!rows.length) throw new UserError('That file has no rows under its header.');
+      const headerKeys = header.map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      if (!headerKeys.some((h) => FIELDS.email.includes(h))) {
+        throw new UserError('No "email" column found. Header was: ' + header.join(', '));
+      }
+
+      const existingCodes = new Set(S.roster(db).map((r) => r.code));
+      const seen = new Set();
+      const plan = [];
+
+      for (const [i, row] of rows.entries()) {
+        const line = i + 2;                       // +1 header, +1 to 1-base
+        const email = pick(row, 'email').toLowerCase();
+        const entry = { line, email, name: pick(row, 'name'), lab: pick(row, 'lab') };
+
+        if (!email) { plan.push(Object.assign(entry, { action: 'skip', reason: 'no email' })); continue; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          plan.push(Object.assign(entry, { action: 'skip', reason: 'not an email address' }));
+          continue;
+        }
+        if (seen.has(email)) {
+          plan.push(Object.assign(entry, { action: 'skip', reason: 'repeated in this file' }));
+          continue;
+        }
+        seen.add(email);
+
+        const role = (pick(row, 'role') || 'student').toLowerCase();
+        if (!['student', 'moderator'].includes(role)) {
+          plan.push(Object.assign(entry, { action: 'skip', reason: 'role must be student or moderator' }));
+          continue;
+        }
+        entry.role = role;
+
+        const existing = S.personByEmail(db, email);
+        let code = D.normCode(pick(row, 'code'));
+        if (code && code !== (existing && existing.code)) {
+          if (existingCodes.has(code)) {
+            plan.push(Object.assign(entry, { action: 'skip', reason: 'that access code is already in use' }));
+            continue;
+          }
+        }
+        if (!code) code = (existing && existing.code) || '';
+        if (!code) {
+          do { code = makeCode(); } while (existingCodes.has(code));
+        }
+        existingCodes.add(code);
+        entry.code = code;
+        // A name is only overwritten when the file actually supplies one.
+        entry.action = existing ? 'update' : 'add';
+        if (existing) {
+          entry.name = entry.name || existing.name;
+          entry.lab = entry.lab || existing.lab;
+          entry.wasInactive = !existing.active;
+        }
+        plan.push(entry);
+      }
+
+      const applies = plan.filter((e) => e.action !== 'skip');
+      if (!dryRun && applies.length) {
+        db.tx(() => {
+          for (const e of applies) {
+            db.run(
+              'INSERT INTO roster(email, name, code, role, lab, active) ' +
+              'VALUES(:e, :n, :c, :r, :l, 1) ' +
+              'ON CONFLICT(email) DO UPDATE SET name = excluded.name, ' +
+              'code = excluded.code, role = excluded.role, lab = excluded.lab, ' +
+              'active = 1',
+              { e: e.email, n: e.name, c: e.code, r: e.role, l: e.lab });
+          }
+          S.audit(db, mod.email, 'import_roster',
+                  `${applies.length} rows (${applies.filter((x) => x.action === 'add').length} new)`);
+        });
+      }
+
+      return {
+        dryRun,
+        added: plan.filter((e) => e.action === 'add').length,
+        updated: plan.filter((e) => e.action === 'update').length,
+        skipped: plan.filter((e) => e.action === 'skip').length,
+        rows: plan,
+      };
+    },
+
+    /**
+     * Turn an account on or off.
+     *
+     * Deactivating also releases that person's claims from today onward: a
+     * student who has graduated should not still be holding desks, and nobody
+     * would think to go and force-release them one by one.
+     */
+    adminSetActive(p) {
+      const mod = requireModerator(p);
+      const email = String(p.email || '').trim().toLowerCase();
+      const active = p.active === true;
+      const person = S.personByEmail(db, email);
+      if (!person) throw new UserError('No such person.');
+
+      if (!active) {
+        // Losing every moderator means nobody can turn anyone back on, and the
+        // only way out is a shell on the server.
+        const others = S.roster(db).filter(
+          (r) => r.role === 'moderator' && r.active && r.email !== email);
+        if (person.role === 'moderator' && !others.length) {
+          throw new UserError('That is the last active moderator — promote someone else first.');
+        }
+      }
+
+      const { cfg, clock } = cfgAndClock();
+      let released = 0;
+      db.tx(() => {
+        db.run('UPDATE roster SET active = :a WHERE email = :e',
+               { a: active ? 1 : 0, e: email });
+        if (!active) {
+          const res = db.run(
+            "UPDATE claims SET status = 'released', released_at = :t " +
+            "WHERE email = :e AND status = 'active' AND date >= :today",
+            { t: clock.iso, e: email, today: clock.date });
+          released = Number(res.changes) || 0;
+        }
+        S.audit(db, mod.email, active ? 'reactivate' : 'deactivate',
+                `${email}${released ? ` (released ${released} claim(s))` : ''}`);
+      });
+      return { email, active, released };
     },
 
     adminForceRelease(p) {

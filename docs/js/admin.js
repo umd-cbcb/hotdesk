@@ -62,6 +62,10 @@
   function table(container, columns, rows) {
     var el = document.querySelector(container);
     el.textContent = '';
+    buildTable(el, columns, rows);
+  }
+
+  function buildTable(el, columns, rows) {
     var t = document.createElement('table');
     var thead = document.createElement('thead');
     var htr = document.createElement('tr');
@@ -98,8 +102,116 @@
           var total = r.honoured + r.missed;
           return total ? r.honoured + '/' + total : '—';
         } },
-      { head: 'Active', cell: function (r) { return r.active ? 'yes' : 'no'; } },
+      { head: '', cell: function (r) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = r.active ? 'btn btn-danger btn-sm' : 'btn btn-sm';
+          b.textContent = r.active ? 'Deactivate' : 'Reactivate';
+          b.addEventListener('click', function () {
+            if (r.active && !confirm(
+                'Deactivate ' + (r.name || r.email) + '?\n\n' +
+                'They will not be able to sign in, and any desks they are holding ' +
+                'from today onward are released. Their history is kept.')) return;
+            API.call('adminSetActive', { email: r.email, active: !r.active })
+              .then(function (res) {
+                Hotdesk.toast(res.active
+                  ? (r.name || r.email) + ' can sign in again.'
+                  : (r.name || r.email) + ' deactivated' +
+                    (res.released ? ', ' + res.released + ' desk(s) released.' : '.'));
+                return open();
+              })
+              .catch(function (err) { Hotdesk.toast(err.message, true); });
+          });
+          return b;
+        } },
     ], admin.roster);
+    // Grey out the people who are switched off, so the roster reads at a glance.
+    var rows = document.querySelectorAll('#roster-table tbody tr');
+    admin.roster.forEach(function (r, i) {
+      if (!r.active && rows[i]) rows[i].classList.add('is-inactive');
+    });
+  }
+
+  /* ------------------------- roster import ---------------------------- */
+
+  var importedCsv = '';
+
+  function csvText() {
+    return (document.getElementById('roster-csv').value || '').trim();
+  }
+
+  function runImport(dryRun) {
+    var csv = csvText();
+    if (!csv) { Hotdesk.toast('Choose a file or paste some rows first.', true); return; }
+    API.call('adminImportRoster', { csv: csv, dryRun: dryRun })
+      .then(function (res) {
+        renderImport(res);
+        if (!dryRun) {
+          importedCsv = '';
+          $('#roster-apply').hidden = true;
+          return open().then(function () { renderImport(res); });
+        }
+        importedCsv = csv;
+        $('#roster-apply').hidden = res.added + res.updated === 0;
+        $('#roster-clear').hidden = false;
+      })
+      .catch(function (err) { Hotdesk.toast(err.message, true); });
+  }
+
+  function renderImport(res) {
+    var host = $('#roster-import-result');
+    host.textContent = '';
+
+    var summary = document.createElement('p');
+    summary.className = 'import-summary';
+    summary.textContent = res.dryRun
+      ? 'Preview: ' + res.added + ' to add, ' + res.updated + ' to update, ' +
+        res.skipped + ' skipped. Nothing saved yet.'
+      : 'Done: ' + res.added + ' added, ' + res.updated + ' updated, ' +
+        res.skipped + ' skipped.';
+    host.appendChild(summary);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'scroll-x';
+    host.appendChild(wrap);
+
+    var columns = [
+      { head: 'Line', cell: function (r) { return String(r.line); } },
+      { head: '', cell: function (r) {
+          var t = document.createElement('span');
+          t.className = 'tag tag-' + r.action;
+          t.textContent = r.action;
+          return t;
+        } },
+      { head: 'Email', cell: function (r) { return r.email || '—'; } },
+      { head: 'Name', cell: function (r) { return r.name || '—'; } },
+      { head: 'Role', cell: function (r) { return r.role || '—'; } },
+      // Codes are what you hand out, so they are only worth showing once saved.
+      { head: res.dryRun ? 'Code' : 'Code to send', cell: function (r) {
+          return r.action === 'skip' ? '—' : (r.code || '—');
+        } },
+      { head: 'Note', cell: function (r) {
+          return r.reason || (r.wasInactive ? 'was deactivated — switched back on' : '');
+        } },
+    ];
+    buildTable(wrap, columns, res.rows);
+
+    if (!res.dryRun && res.added) {
+      var hint = document.createElement('p');
+      hint.className = 'muted xsmall';
+      hint.textContent = 'Send each new person their code. They sign in with it at ' +
+                         location.origin + location.pathname;
+      host.appendChild(hint);
+    }
+  }
+
+  function clearImport() {
+    document.getElementById('roster-csv').value = '';
+    document.getElementById('roster-file').value = '';
+    $('#roster-import-result').textContent = '';
+    $('#roster-apply').hidden = true;
+    $('#roster-clear').hidden = true;
+    importedCsv = '';
   }
 
   function renderDesks() {
@@ -166,5 +278,26 @@
     });
     $('#cfg-save').addEventListener('click', saveConfig);
     $('#person-form').addEventListener('submit', savePerson);
+
+    $('#roster-file').addEventListener('change', function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        document.getElementById('roster-csv').value = String(reader.result || '');
+        runImport(true);          // preview immediately; applying stays deliberate
+      };
+      reader.onerror = function () { Hotdesk.toast('Could not read that file.', true); };
+      reader.readAsText(file);
+    });
+    $('#roster-preview').addEventListener('click', function () { runImport(true); });
+    $('#roster-apply').addEventListener('click', function () {
+      if (csvText() !== importedCsv) {
+        Hotdesk.toast('The rows changed since the preview — preview again first.', true);
+        return;
+      }
+      runImport(false);
+    });
+    $('#roster-clear').addEventListener('click', clearImport);
   });
 })(window);

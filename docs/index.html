@@ -118,6 +118,27 @@
       </form>
       <p id="person-result" class="ok small" hidden></p>
     </div>
+
+    <div class="card">
+      <h2>Add people from a file</h2>
+      <p class="muted xsmall">
+        A CSV with an <code>email</code> column, and optionally
+        <code>name</code>, <code>lab</code>, <code>role</code> and <code>code</code>.
+        Everyone new gets an access code generated; anyone already on the roster
+        keeps theirs. You will see exactly what will happen before anything is saved.
+      </p>
+      <div class="stack">
+        <input type="file" id="roster-file" accept=".csv,text/csv,text/plain">
+        <textarea id="roster-csv" rows="5" spellcheck="false"
+          placeholder="…or paste the rows here:&#10;email,name,lab&#10;ada@umd.edu,Ada Lovelace,Patro"></textarea>
+        <div class="bar">
+          <button id="roster-preview" class="btn" type="button">Preview</button>
+          <button id="roster-apply" class="btn btn-primary" type="button" hidden>Apply</button>
+          <button id="roster-clear" class="btn btn-ghost" type="button" hidden>Clear</button>
+        </div>
+      </div>
+      <div id="roster-import-result"></div>
+    </div>
     <div class="card wide">
       <h2>Desks</h2>
       <p class="muted xsmall">

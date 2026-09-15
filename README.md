@@ -53,6 +53,37 @@ VPN. See **[deploy/README.md](deploy/README.md)** for installing it, importing t
 old Google Sheet, backups, and how to reach it over an SSH tunnel before the
 firewall port is open.
 
+## Managing people
+
+The moderator panel does three things to the roster.
+
+**Add one person** with the small form — they get a generated access code shown
+once you save.
+
+**Add a cohort from a CSV.** Drop in a file (or paste rows) with an `email`
+column; `name`, `lab`, `role` and `code` are optional. Common header spellings
+are accepted — `E-mail`, `Full Name`, `Advisor` all work, because rosters arrive
+in whatever shape the department sent them.
+
+It always previews first: every row is listed with what will happen to it —
+**add**, **update**, or **skip** with the reason and the line number, so a
+mis-mapped column is visible *before* anything is written. Nothing is saved
+until you press Apply. People already on the roster keep their existing access
+code, so re-importing a list never locks anyone out.
+
+**Deactivate someone who has left.** Set them inactive rather than deleting the
+row: deleting would destroy the claim history the occupancy numbers rest on, and
+the foreign keys refuse it anyway. Deactivating
+
+- stops them signing in, and ends any session they already have,
+- **releases every desk they hold from today onward** — a graduating student
+  should not keep a desk booked, and nobody would think to go and force-release
+  them one at a time,
+- keeps their history intact, and is reversible.
+
+The last active moderator cannot switch themselves off, because the only way
+back from that is a shell on the server.
+
 ## Look and feel
 
 There is no established design system for desk booking, so this is a small
