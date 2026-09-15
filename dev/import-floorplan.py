@@ -22,6 +22,13 @@ PAGE = (816.0, 1056.0)           # SVG user units of a US-letter page at 96dpi
 MARGIN = 8                       # units of breathing room around the crop
 PRECISION = 3
 
+# Roughly a third of the CAD paths are shorter than this on a ~800-unit-wide
+# drawing — sub-pixel geometry that cannot be read at any size the board renders
+# at. They are not free: stroke-linecap:square paints a zero-length path as a
+# visible dot, so they show up as speckle over the linework. Dropped by default;
+# pass --detail 0 to keep everything.
+MIN_DETAIL = 2.0
+
 # Facilities numbers the desks 0-28. These are the groupings the room reads as,
 # used for the list view's headings.
 def group_for(n):
@@ -131,6 +138,10 @@ def main():
 
     elements = re.findall(r'<path\b[^>]*/>', raw, re.S)
     desks, keep, boxes = [], [], []
+    dropped = 0
+    min_detail = MIN_DETAIL
+    if '--detail' in sys.argv:
+        min_detail = float(sys.argv[sys.argv.index('--detail') + 1])
 
     for el in elements:
         d = attr(el, 'd')
@@ -154,6 +165,9 @@ def main():
         elif TITLE in style:
             pass                       # the "Floor: Three / Room: 3112" caption
         else:
+            if max(box[2] - box[0], box[3] - box[1]) < min_detail:
+                dropped += 1
+                continue
             keep.append(el); boxes.append(box)
 
     if not desks:
@@ -224,6 +238,8 @@ def main():
 
     print('%d desks (%d-%d) -> docs/assets/desks.tsv' % (len(desks), desks[0]['n'], desks[-1]['n']))
     print('%d paths, %.0fKB      -> docs/assets/floorplan.svg' % (len(keep), len(svg) / 1024))
+    if dropped:
+        print('%d sub-%.3g-unit paths dropped as unrenderable detail' % (dropped, min_detail))
     print('viewBox %s %s %s %s' % (fmt(x0), fmt(y0), fmt(w), fmt(h)))
 
 

@@ -64,17 +64,28 @@ as the rule under the masthead and on destructive actions. If red also meant
 "a desk", red would read as *unavailable* and the board would mislead you at a
 glance — so desk states get their own semantic ramp.
 
-**Status is never carried by hue alone.** Each state pairs a colour with a border
-treatment and a glyph, so the board still parses with any form of colour
+**The scarce state is the loud one.** At ~10% occupancy nearly every desk is
+free, so free is calm and legible while occupied reads as solidly blocked. Yours
+gets a halo ring, because finding your own desk among 29 should take one sweep of
+the eye.
+
+**Status is never carried by hue alone.** Each state pairs colour with fill
+density and a border treatment, so the board still parses with any form of colour
 blindness, on a projector, or in sunlight by the window:
 
-| State | Colour | Border | Glyph |
+| State | Colour | Fill | Border |
 | --- | --- | --- | --- |
-| Free | green | solid | — |
-| Yours | solid blue fill | solid | ★ |
-| In use | grey | solid | ● |
-| Claimed, not arrived | amber | **dashed** | ○ |
-| Unavailable | grey | **hatched** | ✕ |
+| Free | green | tint | solid |
+| Yours | blue | solid | solid + halo |
+| In use | grey | solid | solid |
+| Claimed, not arrived | amber | tint | **dashed** |
+| Unavailable | grey | **hatched** | solid |
+
+The desk markers are round tokens sized as a share of the *map* rather than the
+viewport (`6.4cqw`), so they keep their proportions from a phone to the wall
+display. The closest two desks are 9.16% of the plan's width apart, which is what
+sets that number. Each carries a knockout ring in the plan's paper colour so it
+stays crisp where it sits on the linework.
 
 Every foreground/background pair is at least 4.5:1 in both themes (measured, not
 estimated). A legend on the board teaches the key.
@@ -88,7 +99,9 @@ choice before first paint, so there is no flash of the wrong theme.
 
 The floor plan is injected into the page as inline SVG rather than an `<img>`,
 which lets its linework read the `--plan-ink` and `--plan-paper` tokens and follow
-the theme — dark ink on white, light ink on near-black, at 9.4:1 and 5.7:1. Its
+the theme. It is drawn deliberately light (3.9:1 light, 3.1:1 dark) because it is
+*context*: the desks are the content, and a full-contrast CAD drawing competes
+with them. Its
 strokes use `vector-effect: non-scaling-stroke`, so the drawing stays a true
 hairline on a phone and on a wall display alike. A raster plan cannot follow a
 theme, so if one is ever configured instead it keeps a white sheet under it in

@@ -46,13 +46,13 @@
   /* desk status: fg / bg / border */
   --free-fg:  #0f6b3c;  --free-bg:  #e7f5ed;  --free-bd:  #8fcbaf;
   --mine-fg:  #ffffff;  --mine-bg:  #1c4fd8;  --mine-bd:  #1c4fd8;
-  --taken-fg: #525b69;  --taken-bg: #ebeef2;  --taken-bd: #ccd3dc;
+  --taken-fg: #ffffff;  --taken-bg: #687380;  --taken-bd: #5b6673;
   --hold-fg:  #8a5200;  --hold-bg:  #fdf3e2;  --hold-bd:  #d9a557;
   --off-fg:   #5c6573;  --off-bg:   #eceff3;  --off-bd:   #ccd3dc;
 
   /* the floor plan, inlined as SVG so it follows the theme */
   --plan-paper: #ffffff;
-  --plan-ink:   #3f4753;   /* the facilities linework */
+  --plan-ink:   #79838f;   /* the facilities linework — context, not content */
   --plan-wall:  #8d95a1;
   --plan-desk:  #eef1f5;
   --plan-edge:  #c8cfd8;
@@ -109,12 +109,12 @@
 
   --free-fg:  #5fd39a;  --free-bg:  #102a1e;  --free-bd:  #2f6b4b;
   --mine-fg:  #ffffff;  --mine-bg:  #3059d8;  --mine-bd:  #4c72ea;
-  --taken-fg: #98a1b0;  --taken-bg: #1e242e;  --taken-bd: #333c49;
+  --taken-fg: #0d1016;  --taken-bg: #8892a1;  --taken-bd: #9aa4b2;
   --hold-fg:  #e8b76e;  --hold-bg:  #2d2415;  --hold-bd:  #6d5426;
   --off-fg:   #98a1b0;  --off-bg:   #1b212b;  --off-bd:   #333c49;
 
   --plan-paper: #131820;
-  --plan-ink:   #8792a3;
+  --plan-ink:   #5d6672;
   --plan-wall:  #4d5766;
   --plan-desk:  #1c232d;
   --plan-edge:  #2f3846;
@@ -134,10 +134,10 @@
     --danger: #ff8a97; --danger-soft: #2a1418;
     --free-fg: #5fd39a; --free-bg: #102a1e; --free-bd: #2f6b4b;
     --mine-fg: #ffffff; --mine-bg: #3059d8; --mine-bd: #4c72ea;
-    --taken-fg: #98a1b0; --taken-bg: #1e242e; --taken-bd: #333c49;
+    --taken-fg: #0d1016; --taken-bg: #8892a1; --taken-bd: #9aa4b2;
     --hold-fg: #e8b76e; --hold-bg: #2d2415; --hold-bd: #6d5426;
     --off-fg: #98a1b0; --off-bg: #1b212b; --off-bd: #333c49;
-    --plan-paper: #131820; --plan-ink: #8792a3; --plan-wall: #4d5766; --plan-desk: #1c232d;
+    --plan-paper: #131820; --plan-ink: #5d6672; --plan-wall: #4d5766; --plan-desk: #1c232d;
     --plan-edge: #2f3846; --plan-text: #79838f;
     --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 6px 18px rgb(0 0 0 / .35);
     --shadow-lg: 0 8px 32px rgb(0 0 0 / .55);
@@ -392,7 +392,7 @@ input::placeholder { color: var(--ink-3); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--s3); margin-bottom: var(--s3); }
 .legend-item { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--t-xs); color: var(--ink-3); }
 .legend-swatch {
-  width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid currentColor;
+  width: 15px; height: 15px; border-radius: 50%; border: 2px solid currentColor;
   display: inline-grid; place-items: center; font-size: 9px; line-height: 1;
 }
 
@@ -407,37 +407,63 @@ input::placeholder { color: var(--ink-3); }
 .pins { position: absolute; inset: 0; }
 .map-missing { padding: var(--s6) var(--s4); text-align: center; }
 
+/* Sizing against the map rather than the viewport: the closest two desks are
+   9.16% of the plan's width apart, so 6.4% leaves a visible gap between
+   neighbours at every scale. The clamps stop them becoming untappable on a
+   phone or absurd on a projector. */
+.pins { container-type: size; }
 .pin {
   position: absolute; transform: translate(-50%, -50%);
-  display: inline-flex; align-items: center; gap: 3px;
-  min-width: 36px; padding: .18rem .36rem;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid currentColor;
-  font-size: var(--t-xs); font-weight: 700; line-height: 1.15;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  cursor: pointer; text-align: center; justify-content: center;
+  display: grid; place-items: center;
+  width: clamp(27px, 6.4cqw, 46px); height: clamp(27px, 6.4cqw, 46px);
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  font-size: clamp(10px, 2.5cqw, 18px);
+  font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  /* A knockout ring in the plan's own paper colour, so a token stays crisp
+     where it sits on top of the linework. */
+  box-shadow: 0 0 0 2px var(--plan-paper), 0 1px 3px rgb(16 20 26 / .22);
   transition: transform .1s ease, box-shadow .1s ease;
 }
-.pin:hover { transform: translate(-50%, -50%) scale(1.12); box-shadow: var(--shadow); z-index: 2; }
-.pin::after { font-family: system-ui, sans-serif; font-size: 9px; opacity: .85; }
+.pin:hover {
+  transform: translate(-50%, -50%) scale(1.15); z-index: 2;
+  box-shadow: 0 0 0 2px var(--plan-paper), var(--shadow);
+}
+.pin::after { content: none; }
 
-/* Status: colour + border treatment + glyph, so hue is never load-bearing. */
-.state-free  { color: var(--free-fg);  background: var(--free-bg);  border-color: var(--free-bd); }
-.state-mine  { color: var(--mine-fg);  background: var(--mine-bg);  border-color: var(--mine-bd); }
-.state-mine::after  { content: "\2605"; }        /* ★ yours */
-.state-taken { color: var(--taken-fg); background: var(--taken-bg); border-color: var(--taken-bd); }
-.state-taken::after { content: "\25CF"; }        /* ● occupied */
-.state-hold  { color: var(--hold-fg);  background: var(--hold-bg);  border-style: dashed; border-color: var(--hold-bd); }
-.state-hold::after  { content: "\25CB"; }        /* ○ claimed, not yet arrived */
-.state-off   {
+/* Status fills belong to the round tokens and the legend key that teaches them.
+   Deliberately NOT applied to list rows: those carry a coloured left edge and
+   say the state in words, and inheriting a filled token's text colour here
+   would put white text on a white row. */
+.pin.state-free,  .legend-swatch.state-free
+  { color: var(--free-fg);  background: var(--free-bg);  border-color: var(--free-bd); }
+.pin.state-mine,  .legend-swatch.state-mine
+  { color: var(--mine-fg);  background: var(--mine-bg);  border-color: var(--mine-bd); }
+.pin.state-taken, .legend-swatch.state-taken
+  { color: var(--taken-fg); background: var(--taken-bg); border-color: var(--taken-bd); }
+/* Dashed is the non-colour signal for "claimed but nobody has arrived", so the
+   board still parses without hue. */
+.pin.state-hold,  .legend-swatch.state-hold
+  { color: var(--hold-fg);  background: var(--hold-bg);
+    border-style: dashed; border-color: var(--hold-bd); }
+.pin.state-off,   .legend-swatch.state-off {
   color: var(--off-fg); border-color: var(--off-bd);
   background: var(--off-bg);
   background-image: repeating-linear-gradient(45deg,
-    transparent 0 4px, color-mix(in srgb, var(--off-fg) 22%, transparent) 4px 5px);
+    transparent 0 3px, color-mix(in srgb, var(--off-fg) 30%, transparent) 3px 4px);
 }
-.state-off::after { content: "\2715"; }          /* ✕ unavailable */
-.pin.state-off { cursor: default; }
+.pin.state-off { cursor: default; box-shadow: none; }
 .pin.state-off:hover { transform: translate(-50%, -50%); box-shadow: none; }
+
+/* Yours should be findable in one sweep of the eye across 29 desks. */
+.pin.state-mine {
+  box-shadow: 0 0 0 2px var(--plan-paper),
+              0 0 0 5px color-mix(in srgb, var(--mine-bg) 30%, transparent),
+              0 1px 4px rgb(16 20 26 / .28);
+}
 
 /* ==========================================================================
    list view
@@ -452,6 +478,7 @@ input::placeholder { color: var(--ink-3); }
   border-radius: var(--radius); padding: var(--s2) var(--s3);
   background: var(--surface); min-height: 56px;
 }
+.desk { color: var(--ink); }
 .desk.state-free  { border-left-color: var(--free-fg);  background: var(--surface); }
 .desk.state-mine  { border-left-color: var(--mine-bg);  background: var(--accent-soft); color: var(--ink); }
 .desk.state-taken { border-left-color: var(--taken-bd); background: var(--surface); }
@@ -495,8 +522,10 @@ tbody tr:hover { background: var(--surface-2); }
 
 @media (max-width: 620px) {
   .topbar { padding-top: var(--s3); }
-  .pin { min-width: 30px; font-size: 10px; padding: .14rem .26rem; }
-  .pin::after { display: none; }   /* glyphs cost more than they give at this size */
+  /* No min-width or padding here: the token is a circle whose size comes from
+     the clamp on .pin, and overriding one axis turns it into an ellipse.
+     29 desks across a phone-width plan caps how big it can get — the list
+     view is the comfortable way to book on a small screen. */
   .cfg-row { grid-template-columns: 1fr; }
   .availability b { font-size: var(--t-lg); }
 }
