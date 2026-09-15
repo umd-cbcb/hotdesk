@@ -1,0 +1,11 @@
+[Unit]
+Description=CBCB Hotdesk database snapshot
+Documentation=https://github.com/umd-cbcb/hotdesk
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/app
+Environment=DB_PATH=%h/data/hotdesk.db
+Environment=BACKUP_DIR=%h/backups
+ExecStart=%h/.local/node/bin/node %h/app/tools/backup.js --keep 14
+SyslogIdentifier=hotdesk-backup

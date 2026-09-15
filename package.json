@@ -1,0 +1,20 @@
+{
+  "name": "cbcb-hotdesk",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Desk booking for the shared CBCB graduate lab in IRB 3112",
+  "license": "BSD-3-Clause",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node tools/dev.js",
+    "test": "node --test test/*.test.js",
+    "import": "node tools/import-sheets.js",
+    "backup": "node tools/backup.js"
+  },
+  "comments": {
+    "dependencies": "Intentionally none. SQLite is built into Node 22.5+, so there is nothing to install, nothing to rebuild on a Node upgrade, and no lockfile to rot."
+  }
+}

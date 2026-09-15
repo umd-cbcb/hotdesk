@@ -1,0 +1,46 @@
+# systemd *user* unit for the hotdesk service.
+# Install to ~/.config/systemd/user/hotdesk.service as the `hotdesk` user, then:
+#   systemctl --user daemon-reload && systemctl --user enable --now hotdesk
+#
+# Requires lingering, or the service stops when the login session ends:
+#   sudo loginctl enable-linger hotdesk        # needs root, ask the sysadmin
+
+[Unit]
+Description=CBCB Hotdesk board
+Documentation=https://github.com/umd-cbcb/hotdesk
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/app
+ExecStart=%h/.local/node/bin/node %h/app/server/index.js
+Environment=NODE_ENV=production
+Environment=PORT=8080
+Environment=HOST=0.0.0.0
+Environment=DB_PATH=%h/data/hotdesk.db
+# TRUST_PROXY=1 once the UMIACS load balancer fronts this, so client addresses
+# for rate limiting come from X-Forwarded-For rather than the balancer's own.
+Environment=TRUST_PROXY=0
+# The signing secret lives in %h/app/.env so restarts do not log everyone out.
+EnvironmentFile=-%h/app/.env
+
+Restart=always
+RestartSec=5
+
+# The service needs nothing outside its own home.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/data %h/backups
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hotdesk
+
+[Install]
+WantedBy=default.target

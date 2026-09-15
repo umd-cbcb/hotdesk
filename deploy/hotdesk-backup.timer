@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly CBCB Hotdesk database snapshot
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Catch up after the VM has been down; a missed night is a missed backup.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

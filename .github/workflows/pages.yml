@@ -44,11 +44,18 @@ jobs:
         with:
           python-version: '3.12'
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - name: Frontend parses
         run: |
-          for f in docs/js/*.js dev/demo-server.js; do
+          for f in docs/js/*.js; do
             node --check "$f"
           done
+
+      - name: Backend tests
+        run: node --test test/*.test.js
 
       - name: Desk list agrees with the map
         run: python3 dev/check-desks.py

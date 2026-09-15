@@ -2,6 +2,14 @@
 node_modules/
 *.log
 
+# Runtime state — never commit a database or a signing secret.
+data/
+backups/
+.env
+*.db
+*.db-wal
+*.db-shm
+
 # Never commit a real roster export or a sheet download.
 *.roster.csv
 *.roster.tsv
