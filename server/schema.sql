@@ -18,6 +18,14 @@ CREATE TABLE IF NOT EXISTS config (
   value TEXT NOT NULL DEFAULT ''
 );
 
+-- Internal values the API must never hand out. The token-signing secret lived
+-- in `config` once, and adminState returns the whole config object to
+-- moderators — which is a key to mint a token for any account, forever.
+CREATE TABLE IF NOT EXISTS server_state (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS roster (
   email  TEXT PRIMARY KEY,                     -- lowercased; the identity key
   name   TEXT NOT NULL DEFAULT '',

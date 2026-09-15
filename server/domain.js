@@ -167,8 +167,20 @@ function coerceConfig(raw) {
       cfg[key] = time;
     }
   }
-  cfg.horizonDays = Math.max(0, parseInt(cfg.horizonDays, 10) || 0);
-  cfg.maxOpenClaims = Math.max(1, parseInt(cfg.maxOpenClaims, 10) || 1);
+  // A timezone typo used to take the whole board down: clock() throws, and
+  // every endpoint calls it, so nobody could reach the admin panel to undo it.
+  // Treat it like a bad time — fall back and say so.
+  try {
+    clock(cfg.timezone, new Date());
+  } catch (err) {
+    warnings.push(`timezone "${cfg.timezone}" is not a zone this server knows; ` +
+                  `using ${DEFAULT_CONFIG.timezone}.`);
+    cfg.timezone = DEFAULT_CONFIG.timezone;
+  }
+  // Capped: `state` builds one day (and one query) per horizon day, and this is
+  // a single-threaded server. 30 is already far more than a lab plans ahead.
+  cfg.horizonDays = Math.min(30, Math.max(0, parseInt(cfg.horizonDays, 10) || 0));
+  cfg.maxOpenClaims = Math.min(60, Math.max(1, parseInt(cfg.maxOpenClaims, 10) || 1));
   cfg.checkInEnabled = String(cfg.checkInEnabled).toUpperCase() !== 'FALSE';
   cfg.allowSameDayClaim = String(cfg.allowSameDayClaim).toUpperCase() !== 'FALSE';
   cfg.warnings = warnings;

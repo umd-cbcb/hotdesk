@@ -40,6 +40,7 @@ function open(dbPath) {
 }
 
 function wrap(db) {
+  let depth = 0;
   const api = {
     raw: db,
     all(sql, params = {}) { return db.prepare(sql).all(params); },
@@ -51,8 +52,16 @@ function wrap(db) {
     /**
      * BEGIN IMMEDIATE takes the write lock up front, so two concurrent claims
      * serialise here rather than discovering the conflict at COMMIT.
+     *
+     * Nesting throws rather than being silently flattened: SQLite has no nested
+     * transactions, so an inner ROLLBACK would unwind the OUTER transaction and
+     * the outer COMMIT would then succeed as a no-op — losing writes quietly.
      */
     tx(fn) {
+      if (depth > 0) {
+        throw new Error('db.tx() cannot be nested; SQLite has no nested transactions.');
+      }
+      depth++;
       db.exec('BEGIN IMMEDIATE');
       try {
         const out = fn(api);
@@ -61,6 +70,8 @@ function wrap(db) {
       } catch (err) {
         try { db.exec('ROLLBACK'); } catch (_) { /* already unwound */ }
         throw err;
+      } finally {
+        depth--;
       }
     },
 

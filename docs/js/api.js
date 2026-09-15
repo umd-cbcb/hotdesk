@@ -20,11 +20,21 @@
       return Promise.reject(new Error('The API URL has not been configured in js/config.js yet.'));
     }
     var body = Object.assign({ action: action, token: token() }, params || {});
+    // Without a deadline a hung server leaves the board's busy flag set and
+    // every button dead, with nothing on screen to explain why.
+    var abort = new AbortController();
+    var timer = setTimeout(function () { abort.abort(); }, 15000);
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       redirect: 'follow',
+      signal: abort.signal,
       body: JSON.stringify(body),
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('The server did not respond. Check your VPN connection and try again.');
+      }
+      throw new Error('Could not reach the server. Check your VPN connection.');
     }).then(function (res) {
       if (!res.ok) throw new Error('Server returned ' + res.status + '.');
       return res.text();
@@ -33,13 +43,14 @@
       try {
         parsed = JSON.parse(text);
       } catch (err) {
-        // Almost always the deployment's access setting, which serves an HTML
-        // sign-in page instead of JSON.
-        throw new Error('Unexpected response from the server. Check that the web app is deployed with access set to "Anyone".');
+        // Usually a proxy or captive portal returning an HTML page instead of
+        // the API's JSON.
+        throw new Error('The server sent something unexpected. If you are off the ' +
+                        'UMIACS VPN, connect and try again.');
       }
       if (!parsed.ok) throw new Error(parsed.error || 'Request failed.');
       return parsed.data;
-    });
+    }).finally(function () { clearTimeout(timer); });
   }
 
   global.API = {

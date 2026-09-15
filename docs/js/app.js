@@ -535,16 +535,38 @@
     });
   }
 
+  /**
+   * Only an authentication failure should cost someone their session. A restart,
+   * a dropped VPN or a slow response used to land in the same branch and delete
+   * the token, so a hiccup meant asking a moderator for an access code most
+   * students no longer have.
+   */
+  function isAuthError(message) {
+    return /expired|sign in again|deactivated|could not find your account/i.test(
+      String(message || ''));
+  }
+
   function start() {
     wire();
     if (!API.token()) { show('view-login'); return; }
     load().catch(function (err) {
-      API.signOut();
-      show('view-login');
-      if (err.message.indexOf('expired') < 0) {
-        $('#login-error').textContent = err.message;
-        $('#login-error').hidden = false;
+      if (isAuthError(err.message)) {
+        API.signOut();
+        show('view-login');
+        if (!/expired/i.test(err.message)) {
+          $('#login-error').textContent = err.message;
+          $('#login-error').hidden = false;
+        }
+        return;
       }
+      // Still signed in; the server is just unreachable or unhappy.
+      show('view-board');
+      var notice = $('#notice');
+      notice.textContent = err.message + ' Your sign-in is still valid — retrying.';
+      notice.hidden = false;
+      setTimeout(function retry() {
+        load().catch(function () { setTimeout(retry, 15000); });
+      }, 5000);
     });
   }
 

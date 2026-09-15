@@ -83,12 +83,35 @@ for unit in hotdesk.service hotdesk-backup.service hotdesk-backup.timer; do
   echo "  $unit"
 done
 systemctl --user daemon-reload
-systemctl --user enable --now hotdesk.service
+systemctl --user enable hotdesk.service
 systemctl --user enable --now hotdesk-backup.timer
 
+say "Restart"
+# enable --now is a no-op on an already-running unit, so without this the new
+# code is never loaded and the health check below would pass against the OLD
+# process — a failed deploy that looks like a good one.
+systemctl --user restart hotdesk.service
+
+say "Health"
+ok=""
+for _ in $(seq 1 20); do
+  if curl -fsS --max-time 2 localhost:8080/healthz > /tmp/hotdesk-health.$$ 2>/dev/null; then
+    ok=1; break
+  fi
+  sleep 0.5
+done
+if [ -n "$ok" ]; then
+  cat /tmp/hotdesk-health.$$; echo
+  rm -f /tmp/hotdesk-health.$$
+else
+  echo "  service did not become healthy" >&2
+  systemctl --user --no-pager status hotdesk.service | head -20 >&2
+  journalctl --user -u hotdesk -n 30 --no-pager >&2
+  exit 1
+fi
+
 say "Status"
-systemctl --user --no-pager status hotdesk.service | head -12 || true
-curl -fsS localhost:8080/healthz && echo
+systemctl --user --no-pager status hotdesk.service | head -8 || true
 
 cat <<'NEXT'
 

@@ -61,7 +61,9 @@ function createApi({ db, secret, now = () => new Date() }) {
     if (!D.sweepDue(cfg, clock)) return;
     const stale = db.all(
       "SELECT claim_id, desk_id, email FROM claims " +
-      "WHERE status = 'active' AND date = :d AND checked_in_at = ''", { d: clock.date });
+      // `<=` not `=`: a claim from a day the server was down would otherwise
+      // stay active forever, invisible but polluting the occupancy numbers.
+      "WHERE status = 'active' AND date <= :d AND checked_in_at = ''", { d: clock.date });
     if (!stale.length) return;
     db.tx(() => {
       for (const row of stale) {
@@ -174,7 +176,10 @@ function createApi({ db, secret, now = () => new Date() }) {
         throw new UserError(desk.label + ' is reserved for someone else.');
       }
 
-      const claimId = crypto.randomUUID().slice(0, 8);
+      // Full UUID: 8 hex characters is 32 bits, and isConflict() maps any
+      // UNIQUE failure to "someone just claimed it", so a collision would
+      // surface as a mysteriously unclaimable free desk.
+      const claimId = crypto.randomUUID();
       const sameDay = D.dayDiff(date, clock.date) === 0;
 
       try {
@@ -237,10 +242,17 @@ function createApi({ db, secret, now = () => new Date() }) {
       if (claim.date !== clock.date) {
         throw new UserError('You can only check in on the day itself.');
       }
-      if (claim.status !== 'active') throw new UserError('That claim is no longer active.');
       if (claim.checkedInAt) return { checkedIn: true };
-      db.run("UPDATE claims SET checked_in_at = :t WHERE claim_id = :id",
-             { t: clock.iso, id: claim.claimId });
+      // Guard in the UPDATE, not just the read: the no-show sweep can flip this
+      // row between the two. Without the guard we would report a successful
+      // check-in on a desk that had just been released to someone else.
+      const res = db.tx(() => db.run(
+        "UPDATE claims SET checked_in_at = :t " +
+        "WHERE claim_id = :id AND status = 'active' AND checked_in_at = ''",
+        { t: clock.iso, id: claim.claimId }));
+      if (!Number(res.changes)) {
+        throw new UserError('That claim is no longer active — it may have just been released.');
+      }
       S.audit(db, user.email, 'checkin', claim.date + ' ' + claim.deskId);
       return { checkedIn: true };
     },
@@ -260,8 +272,11 @@ function createApi({ db, secret, now = () => new Date() }) {
 
     adminSetConfig(p) {
       const mod = requireModerator(p);
-      const saved = db.tx(() => S.setConfig(db, p.updates));
+      const { saved, rejected } = db.tx(() => S.setConfig(db, p.updates));
       S.audit(db, mod.email, 'config', p.updates);
+      if (rejected.length) {
+        throw new UserError('Not a setting this server has: ' + rejected.join(', '));
+      }
       return { saved };
     },
 
@@ -298,6 +313,11 @@ function createApi({ db, secret, now = () => new Date() }) {
       const role = String(person.role || 'student').trim().toLowerCase();
       if (!['student', 'moderator'].includes(role)) {
         throw new UserError('Role must be student or moderator.');
+      }
+      const clash = db.get('SELECT email FROM roster WHERE code = :c AND email <> :e',
+                           { c: code, e: email });
+      if (clash) {
+        throw new UserError('That access code is already in use by ' + clash.email + '.');
       }
       db.run(
         'INSERT INTO roster(email, name, code, role, lab, active) ' +
@@ -341,8 +361,14 @@ function createApi({ db, secret, now = () => new Date() }) {
       if (!handler) throw new UserError('Unknown action: ' + action);
       return { ok: true, data: handler(body) };
     } catch (err) {
-      if (!err || !err.isUserError) console.error('[api]', action, err);
-      return { ok: false, error: err && err.message ? err.message : String(err) };
+      if (err && err.isUserError) {
+        return { ok: false, error: err.message };
+      }
+      // Never hand an internal message to the browser: a duplicate access code
+      // would otherwise show a moderator "UNIQUE constraint failed: roster.code".
+      console.error('[api]', action, err);
+      return { ok: false, error: 'Something went wrong on the server. Try again, ' +
+                                'and tell a moderator if it keeps happening.' };
     }
   }
 

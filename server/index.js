@@ -17,6 +17,7 @@ const crypto = require('node:crypto');
 const config = require('./config');
 const { open } = require('./db');
 const { createApi } = require('./api');
+const S = require('./store');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -37,12 +38,26 @@ const MAX_BODY = 256 * 1024;
  * deploy works without ceremony and sessions survive a restart.
  */
 function resolveSecret(db) {
+  // An older build kept this in `config`, which adminState returns wholesale to
+  // moderators. Move any such value out and delete it on sight.
+  const stale = db.get("SELECT value FROM config WHERE key = 'hmacSecret'");
+  if (stale && stale.value) {
+    S.setServerState(db, 'hmacSecret', stale.value);
+    db.run("DELETE FROM config WHERE key = 'hmacSecret'");
+    console.warn('[secret] moved hmacSecret out of the config table');
+  }
   if (config.secret) return config.secret;
-  const row = db.get("SELECT value FROM config WHERE key = 'hmacSecret'");
-  if (row && row.value) return row.value;
+
+  const existing = S.getServerState(db, 'hmacSecret');
+  if (existing) {
+    console.warn('[secret] HOTDESK_SECRET is unset; using the one stored in the ' +
+                 'database. Sessions survive restarts, but set it in .env.');
+    return existing;
+  }
   const secret = crypto.randomBytes(48).toString('base64url');
-  db.run("INSERT INTO config(key, value) VALUES('hmacSecret', :v) " +
-         'ON CONFLICT(key) DO UPDATE SET value = excluded.value', { v: secret });
+  S.setServerState(db, 'hmacSecret', secret);
+  console.warn('[secret] no HOTDESK_SECRET and none stored — generated a new one. ' +
+               'Everyone has been signed out. Set HOTDESK_SECRET in .env.');
   return secret;
 }
 
@@ -110,6 +125,12 @@ function serveStatic(req, res, urlPath) {
   });
 }
 
+const VERSION = (() => {
+  try {
+    return require('../package.json').version;
+  } catch (err) { return 'unknown'; }
+})();
+
 function createServer({ db, api }) {
   return http.createServer(async (req, res) => {
     let urlPath;
@@ -174,7 +195,16 @@ function createServer({ db, api }) {
     }
 
     if (urlPath === '/healthz') {
-      sendJson(res, { ok: true, uptime: Math.round(process.uptime()) });
+      // Touch the database: a health check that cannot fail is worthless to the
+      // load balancer precisely when the disk is full or the file is corrupt.
+      try {
+        const n = db.get('SELECT COUNT(*) AS n FROM desks').n;
+        sendJson(res, { ok: true, uptime: Math.round(process.uptime()),
+                        desks: n, version: VERSION });
+      } catch (err) {
+        console.error('[healthz]', err);
+        sendJson(res, { ok: false, error: 'database unavailable' }, 503);
+      }
       return;
     }
 

@@ -5,7 +5,10 @@
  */
 'use strict';
 
-const { coerceConfig } = require('./domain');
+const { coerceConfig, DEFAULT_CONFIG } = require('./domain');
+
+/** Only these keys are readable or writable through the API. */
+const CONFIG_KEYS = new Set(Object.keys(DEFAULT_CONFIG));
 
 const toDesk = (r) => ({
   deskId: r.desk_id,
@@ -44,20 +47,40 @@ const publicUser = (p) => ({ email: p.email, name: p.name, role: p.role, lab: p.
 
 function getConfig(db) {
   const raw = {};
-  for (const row of db.all('SELECT key, value FROM config')) raw[row.key] = row.value;
+  for (const row of db.all('SELECT key, value FROM config')) {
+    // Whitelist on the way out: anything else in the table (a stray key, or a
+    // secret from an older schema) must not reach a client.
+    if (CONFIG_KEYS.has(row.key)) raw[row.key] = row.value;
+  }
   return coerceConfig(raw);
 }
 
 function setConfig(db, updates) {
   let saved = 0;
+  const rejected = [];
   for (const [key, value] of Object.entries(updates || {})) {
+    // Whitelist on the way in too, so a client cannot invent keys or clobber
+    // anything the server relies on.
+    if (!CONFIG_KEYS.has(key)) { rejected.push(key); continue; }
     db.run(
       'INSERT INTO config(key, value) VALUES(:k, :v) ' +
       'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      { k: String(key), v: String(value ?? '') });
+      { k: key, v: String(value ?? '') });
     saved++;
   }
-  return saved;
+  return { saved, rejected };
+}
+
+/** Internal server values, deliberately not part of `config`. */
+function getServerState(db, key) {
+  const row = db.get('SELECT value FROM server_state WHERE key = :k', { k: key });
+  return row ? row.value : null;
+}
+
+function setServerState(db, key, value) {
+  db.run('INSERT INTO server_state(key, value) VALUES(:k, :v) ' +
+         'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+         { k: key, v: String(value) });
 }
 
 const desks = (db) =>
@@ -114,7 +137,8 @@ function audit(db, actor, action, detail) {
 }
 
 module.exports = {
+  CONFIG_KEYS,
   toDesk, toPerson, toClaim, publicUser,
-  getConfig, setConfig, desks, deskById, roster, personByEmail, peopleByCode,
+  getConfig, setConfig, getServerState, setServerState, desks, deskById, roster, personByEmail, peopleByCode,
   activeClaimsOn, claimsForEmail, claimById, upcomingClaims, audit,
 };
