@@ -63,12 +63,20 @@ echo "  node:sqlite available"
 say "Signing secret"
 if [ ! -f "$APP_DIR/.env" ]; then
   # Persisted so restarts do not invalidate everyone's session.
-  printf 'HOTDESK_SECRET=%s\n' "$("$NODE" -e \
-    'process.stdout.write(require("crypto").randomBytes(48).toString("base64url"))')" \
-    > "$APP_DIR/.env"
+  {
+    printf 'HOTDESK_SECRET=%s\n' "$("$NODE" -e \
+      'process.stdout.write(require("crypto").randomBytes(48).toString("base64url"))')"
+    # Recorded here so the tools resolve the same database as the service. They
+    # used to default to <app>/data, which silently created a second copy.
+    printf 'DB_PATH=%s\n' "$DATA_DIR/hotdesk.db"
+    printf 'BACKUP_DIR=%s\n' "$BACKUP_DIR"
+  } > "$APP_DIR/.env"
   chmod 600 "$APP_DIR/.env"
   echo "  created $APP_DIR/.env"
 else
+  # An older .env has the secret but not the paths; add them without touching it.
+  grep -q '^DB_PATH=' "$APP_DIR/.env" || printf 'DB_PATH=%s\n' "$DATA_DIR/hotdesk.db" >> "$APP_DIR/.env"
+  grep -q '^BACKUP_DIR=' "$APP_DIR/.env" || printf 'BACKUP_DIR=%s\n' "$BACKUP_DIR" >> "$APP_DIR/.env"
   echo "  keeping existing $APP_DIR/.env"
 fi
 

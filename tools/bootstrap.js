@@ -16,7 +16,9 @@
  */
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
+const config = require('../server/config');
 const { open } = require('../server/db');
 const { readDesks } = require('./seed');
 const { DEFAULT_CONFIG, normCode } = require('../server/domain');
@@ -31,8 +33,11 @@ function arg(name, dflt) {
 const has = (name) => process.argv.includes('--' + name);
 
 function main() {
-  const dbPath = arg('db', process.env.DB_PATH ||
-    path.join(__dirname, '..', 'data', 'hotdesk.db'));
+  // Same resolution as the server: --db, then DB_PATH, then .env, then the
+  // default. Getting this wrong writes a second database nobody reads.
+  const dbPath = arg('db', config.dbPath);
+  const fresh = !fs.existsSync(dbPath);
+  console.log('database  ' + path.resolve(dbPath) + (fresh ? '  (creating)' : ''));
   const email = String(arg('moderator', '')).trim().toLowerCase();
   const name = String(arg('name', '')).trim();
   const title = String(arg('title', 'IRB 3112 Hotdesk'));
@@ -87,6 +92,12 @@ function main() {
         : '  Sign in with this. Add everyone else from the Moderator panel.');
     }
   });
+
+  if (fresh) {
+    console.log('\n  NOTE: that database did not exist, so this created it. If the');
+    console.log('  service is already running, check it is using the same path:');
+    console.log('      systemctl --user show hotdesk -p Environment');
+  }
 
   const counts = {
     desks: db.get('SELECT COUNT(*) AS n FROM desks').n,

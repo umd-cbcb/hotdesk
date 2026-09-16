@@ -1,7 +1,32 @@
 /** Environment configuration. Every value has a working default for local dev. */
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
+
+/**
+ * Load <repo>/.env if it exists.
+ *
+ * The systemd unit already reads this file, so having the tools read it too is
+ * what stops them drifting onto a different database from the service. They did
+ * exactly that once: bootstrap wrote a second, unread copy while the running
+ * server kept serving an empty one, and nothing reported an error.
+ *
+ * A real environment variable always wins over the file.
+ */
+(function loadEnvFile() {
+  const file = process.env.HOTDESK_ENV || path.join(__dirname, '..', '.env');
+  let text;
+  try { text = fs.readFileSync(file, 'utf8'); } catch (err) { return; }
+  for (const line of text.split('\n')) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!m || line.trim().startsWith('#')) continue;
+    // An empty variable counts as unset: systemd and shells both hand one
+    // through, and it should not shadow a real value in the file.
+    if (process.env[m[1]] !== undefined && process.env[m[1]] !== '') continue;
+    process.env[m[1]] = m[2].trim().replace(/^(['"])([\s\S]*)\1$/, '$2');
+  }
+})();
 
 const bool = (v, dflt) =>
   v === undefined ? dflt : !['0', 'false', 'no', ''].includes(String(v).toLowerCase());

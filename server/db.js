@@ -24,8 +24,16 @@ try {
 
 const SCHEMA = path.join(__dirname, 'schema.sql');
 
-function open(dbPath) {
+function open(dbPath, { mustExist = false } = {}) {
   if (dbPath !== ':memory:') {
+    if (mustExist && !fs.existsSync(dbPath)) {
+      // Creating one here is how a typo becomes a silent second database that
+      // nothing reads while the real one carries on empty.
+      throw new Error(
+        'No database at ' + path.resolve(dbPath) + '\n' +
+        'Set DB_PATH (or pass --db) to the one the service uses. The systemd ' +
+        'unit and the tools both read it from the .env file beside the app.');
+    }
     fs.mkdirSync(path.dirname(path.resolve(dbPath)), { recursive: true });
   }
   const db = new DatabaseSync(dbPath);
