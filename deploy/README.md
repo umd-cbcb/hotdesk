@@ -92,14 +92,44 @@ node tools/backup.js                       # snapshot right now
 
 ## Backups
 
-`tools/backup.js` uses `VACUUM INTO`, which produces a consistent snapshot while
-the service is running. Copying the live `.db` file does not — it can catch a
-torn page or miss the write-ahead log, giving you a backup that only fails when
-you try to restore it. Ask the sysadmin to back up `~hotdesk/backups/`, not
-`~hotdesk/data/`.
+`tools/backup.js` runs nightly at 03:30 from a systemd timer and writes a
+consistent snapshot into `~hotdesk/backups/`, keeping 14 days. It uses
+`VACUUM INTO`, which is safe while the service is running; copying the live
+`.db` file is not, because it can catch a torn page or miss the write-ahead log
+and give you a backup that only fails when you try to restore it.
 
-To restore: stop the service, copy a snapshot over `~hotdesk/data/hotdesk.db`,
-remove any `-wal` and `-shm` siblings, start it again.
+### What to ask the sysadmin to back up
+
+| | |
+| --- | --- |
+| **Back up** | `/home/hotdesk/backups/` |
+| **Skip** | `/home/hotdesk/data/` — the live database |
+| **Frequency** | nightly; anything daily or better is fine |
+| **Size** | ~1 MB per academic year; a snapshot gzips under 200 KB; the 14 retained total ~13 MB |
+
+The point worth making to them is that **nothing database-aware is required on
+their side**. By the time their backup runs, the snapshots are ordinary static
+files. There is no need to stop the service and no serialization problem for
+them to solve — we have already handled it here.
+
+What is not reproducible from the repository: the roster, each person's access
+code, and the booking history. The desks and the floor plan can be regenerated
+with `dev/import-floorplan.py`. Losing a day of bookings would be an
+inconvenience; losing a semester of history would lose the occupancy evidence
+this project exists to produce.
+
+### Restoring
+
+Stop the service, copy a snapshot over the live database, remove any stale
+write-ahead files, start it again:
+
+```bash
+systemctl --user stop hotdesk
+cp ~/backups/hotdesk-<timestamp>.db ~/data/hotdesk.db
+rm -f ~/data/hotdesk.db-wal ~/data/hotdesk.db-shm
+systemctl --user start hotdesk
+curl -s localhost:8080/healthz     # the desk count confirms which database is live
+```
 
 ## When the load balancer arrives
 
