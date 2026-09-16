@@ -30,16 +30,19 @@ Layout it creates:
 | `~hotdesk/backups/` | nightly snapshots — **this is what needs backing up** |
 | `~hotdesk/app/.env` | the signing secret, mode 600 |
 
-## Two things the script cannot do itself
+## The one thing the script cannot do itself
 
-**Lingering** — without it systemd stops the service when the session ends:
+**Lingering** — without it systemd stops the service when the session ends and
+it does not come back after a reboot. `install.sh` enables it for itself, which
+needs no root because polkit's `set-self-linger` defaults to allow. Confirm:
 
 ```bash
-sudo loginctl enable-linger hotdesk
 loginctl show-user hotdesk -p Linger     # expect Linger=yes
 ```
 
-**The firewall** — until port 8080 is open, reach it over SSH:
+If it ever reads `no`, ask the sysadmin to run `loginctl enable-linger hotdesk`.
+
+**The firewall.** Until port 8080 is open, reach it over SSH:
 
 ```bash
 ssh -N -L 8080:localhost:8080 nomad@cbcb-hotdesk.umiacs.umd.edu
@@ -48,7 +51,23 @@ ssh -N -L 8080:localhost:8080 nomad@cbcb-hotdesk.umiacs.umd.edu
 then open <http://localhost:8080>. The request arrives on the VM's loopback, so
 this works with the port closed, and is the fastest way to debug later.
 
-## Importing the Google Sheet
+## First run: load the desks and create yourself
+
+A new database is empty, so nobody can sign in — including you.
+
+```bash
+~/.local/node/bin/node ~/app/tools/bootstrap.js \
+    --moderator you@umd.edu --name "Your Name"
+```
+
+It loads the 29 desks from `docs/assets/desks.tsv`, creates you as a moderator
+and prints your access code. Idempotent: re-running upserts the desks and leaves
+an existing person's code alone, so it is safe after an upgrade.
+
+Everyone else goes in from the Moderator panel — one at a time, or a whole cohort
+from a CSV.
+
+## Importing the Google Sheet (only if you want the old history)
 
 Download each tab as CSV into one directory (`Config.csv`, `Roster.csv`,
 `Desks.csv`, `Claims.csv`, `Audit.csv`), then:

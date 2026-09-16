@@ -113,15 +113,32 @@ fi
 say "Status"
 systemctl --user --no-pager status hotdesk.service | head -8 || true
 
-cat <<'NEXT'
+say "Next"
+# A user may enable their own lingering without root: polkit's set-self-linger
+# defaults to allow. Try it rather than telling the operator to find an admin.
+if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" = "yes" ]; then
+  echo "  lingering is on — the service survives logout and reboot"
+else
+  if loginctl enable-linger 2>/dev/null; then
+    echo "  lingering enabled — the service survives logout and reboot"
+  else
+    echo "  LINGERING IS OFF. The service is running now, but it will stop when"
+    echo "  this session ends and will not return after a reboot. Ask the"
+    echo "  sysadmin to run:  loginctl enable-linger $(id -un)"
+  fi
+fi
 
-Done. Two things this script cannot do for itself:
+cat <<NEXT
 
-  1. Lingering. Without it the service stops when your session ends:
-         sudo loginctl enable-linger hotdesk
-     Check with: loginctl show-user hotdesk -p Linger
+  If this is a fresh install the roster is empty, so nobody can sign in yet —
+  including you. Load the desks and create your account with:
 
-  2. The firewall. Until the port is open, reach it over an SSH tunnel:
-         ssh -N -L 8080:localhost:8080 nomad@cbcb-hotdesk.umiacs.umd.edu
-     then open http://localhost:8080
+      $PREFIX/bin/node $APP_DIR/tools/bootstrap.js \\
+          --moderator you@umd.edu --name "Your Name"
+
+  Until the firewall port is open, reach the board over an SSH tunnel:
+
+      ssh -N -L 8080:localhost:8080 nomad@$(hostname -f)
+
+  then open http://localhost:8080
 NEXT
