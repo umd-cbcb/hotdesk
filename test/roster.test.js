@@ -185,3 +185,60 @@ test('saving a person does not silently reactivate them', withApi((h) => {
     .find((r) => r.email === 'sam@umd.edu');
   assert.equal(sam.active, false);
 }));
+
+/* -------------------------------- roles --------------------------------- */
+
+test('a moderator can promote someone, who then has moderator powers', withApi((h) => {
+  const token = h.login('ROB123');
+  assert.match(error(h.call({ action: 'adminState', token: h.login('SAM001') })),
+               /Moderators only/);
+
+  const d = data(h.call({ action: 'adminSetRole', token, email: 'sam@umd.edu', role: 'moderator' }));
+  assert.equal(d.role, 'moderator');
+  assert.ok(h.call({ action: 'adminState', token: h.login('SAM001') }).ok,
+            'the promotion takes effect on their next request, not their next login');
+}));
+
+test('demoting removes those powers again', withApi((h) => {
+  const token = h.login('ROB123');
+  data(h.call({ action: 'adminSetRole', token, email: 'sam@umd.edu', role: 'moderator' }));
+  data(h.call({ action: 'adminSetRole', token, email: 'sam@umd.edu', role: 'student' }));
+  assert.match(error(h.call({ action: 'adminState', token: h.login('SAM001') })),
+               /Moderators only/);
+}));
+
+test('the last moderator cannot demote themselves', withApi((h) => {
+  // Same trap as deactivation: nobody left who can promote anyone back.
+  assert.match(error(h.call({ action: 'adminSetRole', token: h.login('ROB123'),
+                              email: 'rob@umd.edu', role: 'student' })),
+               /last active moderator/);
+}));
+
+test('a second moderator makes demotion possible', withApi((h) => {
+  const token = h.login('ROB123');
+  data(h.call({ action: 'adminSetRole', token, email: 'sam@umd.edu', role: 'moderator' }));
+  assert.ok(h.call({ action: 'adminSetRole', token, email: 'rob@umd.edu', role: 'student' }).ok);
+}));
+
+test('a deactivated moderator does not count as cover for demotion', withApi((h) => {
+  // Otherwise you could demote your way to a roster whose only moderator is
+  // switched off, and lock everyone out.
+  const token = h.login('ROB123');
+  data(h.call({ action: 'adminSetRole', token, email: 'sam@umd.edu', role: 'moderator' }));
+  data(h.call({ action: 'adminSetActive', token, email: 'sam@umd.edu', active: false }));
+  assert.match(error(h.call({ action: 'adminSetRole', token,
+                              email: 'rob@umd.edu', role: 'student' })),
+               /last active moderator/);
+}));
+
+test('an invalid role is refused', withApi((h) => {
+  assert.match(error(h.call({ action: 'adminSetRole', token: h.login('ROB123'),
+                              email: 'sam@umd.edu', role: 'admin' })),
+               /student or moderator/);
+}));
+
+test('students cannot promote themselves', withApi((h) => {
+  assert.match(error(h.call({ action: 'adminSetRole', token: h.login('SAM001'),
+                              email: 'sam@umd.edu', role: 'moderator' })),
+               /Moderators only/);
+}));

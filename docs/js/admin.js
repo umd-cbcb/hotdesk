@@ -102,7 +102,33 @@
           s.textContent = 'Google';
           return s;
         } },
-      { head: 'Role', cell: function (r) { return r.role; } },
+      { head: 'Role', cell: function (r) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-sm btn-ghost role-toggle';
+          b.textContent = r.role;
+          b.title = r.role === 'moderator'
+            ? 'Demote to student' : 'Promote to moderator';
+          b.addEventListener('click', function () {
+            var next = r.role === 'moderator' ? 'student' : 'moderator';
+            var me = (Hotdesk.state.data || {}).user || {};
+            if (next === 'student' && r.email === me.email &&
+                !confirm('Demote yourself?\n\nYou will lose the Moderator panel ' +
+                         'immediately and another moderator would have to promote ' +
+                         'you back.')) return;
+            if (next === 'moderator' && !confirm(
+                'Make ' + (r.name || r.email) + ' a moderator?\n\n' +
+                'They will be able to add and remove people, change the booking ' +
+                'rules, and release anyone\'s desk.')) return;
+            API.call('adminSetRole', { email: r.email, role: next })
+              .then(function () {
+                Hotdesk.toast((r.name || r.email) + ' is now a ' + next + '.');
+                return open();
+              })
+              .catch(function (err) { Hotdesk.toast(err.message, true); });
+          });
+          return b;
+        } },
       { head: 'Lab', cell: function (r) { return r.lab; } },
       { head: 'Showed up', cell: function (r) {
           var total = r.honoured + r.missed;
@@ -294,7 +320,8 @@
       var out = $('#person-result');
       out.textContent = res.code
         ? 'Saved. ' + res.saved + ' — access code: ' + res.code
-        : 'Saved. ' + res.saved + ' — signs in with their UMD Google account.';
+        : 'Saved. ' + res.saved + ' — they sign in at ' + location.origin +
+          location.pathname + ' with their UMD Google account. Nothing to send them.';
       out.hidden = false;
       form.reset();
       return open();

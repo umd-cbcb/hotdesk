@@ -103,8 +103,21 @@ before, so this is safe to configure later.
 
 The moderator panel does three things to the roster.
 
-**Add one person** with the small form — they get a generated access code shown
-once you save.
+**Add one person** with the small form. If they have a UMD account that is the
+whole thing — there is no invitation to send. The roster *is* the allowlist, so
+adding them means they can sign in at the board's URL with Google. Tick
+*Visitor* only for someone without a UMD account, and they get an access code
+shown once you save.
+
+**Make someone a moderator** by clicking their role in the roster table. It
+toggles between `student` and `moderator` and takes effect on their next
+request, not their next sign-in. Moderators can add and remove people, change
+the booking rules, and release anyone's desk, so the promotion asks for
+confirmation.
+
+The last active moderator cannot be demoted or deactivated, and a *deactivated*
+moderator does not count as cover — otherwise you could end up with a roster
+whose only moderator is switched off and nobody able to turn them back on.
 
 **Add a cohort from a CSV.** Drop in a file (or paste rows) with an `email`
 column; `name`, `lab`, `role` and `code` are optional. Common header spellings

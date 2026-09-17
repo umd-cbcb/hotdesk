@@ -533,6 +533,36 @@ function createApi({ db, secret, now = () => new Date(), google = null }) {
       return { email, code };
     },
 
+    /**
+     * Promote or demote someone.
+     *
+     * Guarded the same way deactivation is: demoting the last active moderator
+     * would leave nobody able to promote anyone, and the only way back is a
+     * shell on the server.
+     */
+    adminSetRole(p) {
+      const mod = requireModerator(p);
+      const email = String(p.email || '').trim().toLowerCase();
+      const role = String(p.role || '').trim().toLowerCase();
+      if (!['student', 'moderator'].includes(role)) {
+        throw new UserError('Role must be student or moderator.');
+      }
+      const person = S.personByEmail(db, email);
+      if (!person) throw new UserError('No such person.');
+      if (person.role === role) return { email, role };
+
+      if (role === 'student' && person.role === 'moderator') {
+        const others = S.roster(db).filter(
+          (r) => r.role === 'moderator' && r.active && r.email !== email);
+        if (!others.length) {
+          throw new UserError('That is the last active moderator — promote someone else first.');
+        }
+      }
+      db.run('UPDATE roster SET role = :r WHERE email = :e', { r: role, e: email });
+      S.audit(db, mod.email, role === 'moderator' ? 'promote' : 'demote', email);
+      return { email, role };
+    },
+
     adminSetActive(p) {
       const mod = requireModerator(p);
       const email = String(p.email || '').trim().toLowerCase();

@@ -523,6 +523,10 @@ tbody tr:hover { background: var(--surface-2); }
 .cfg-row { display: grid; grid-template-columns: 1fr 150px; gap: var(--s2); align-items: center; }
 .cfg-row label { font-size: var(--t-sm); color: var(--ink-2); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* The role reads as a label until you hover, so the table stays scannable
+   rather than looking like a row of buttons. */
+.role-toggle { padding: .1rem .35rem; text-decoration: underline dotted; }
+.role-toggle:hover { background: var(--surface-3); color: var(--ink); }
 .bar { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
 textarea {
   font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
