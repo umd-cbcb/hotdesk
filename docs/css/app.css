@@ -265,6 +265,25 @@ input::placeholder { color: var(--ink-3); }
   border-radius: var(--radius-pill);
 }
 .login-title { font-size: var(--t-xl); margin: 0; }
+.or {
+  display: flex; align-items: center; gap: var(--s2);
+  color: var(--ink-3); font-size: var(--t-xs); margin: var(--s3) 0 var(--s2);
+}
+.or::before, .or::after {
+  content: ""; flex: 1; height: 1px; background: var(--line);
+}
+.code-signin { text-align: left; }
+.code-signin summary {
+  cursor: pointer; padding: var(--s1) 0; text-align: center; list-style: none;
+}
+.code-signin summary::-webkit-details-marker { display: none; }
+.code-signin summary:hover { color: var(--ink); }
+.code-signin[open] summary { margin-bottom: var(--s2); }
+.check { display: flex; align-items: center; gap: var(--s2); font-size: var(--t-sm); }
+.check input { width: auto; }
+/* Google renders its own button; keep it centred with our controls. */
+#google-button { display: flex; justify-content: center; min-height: 40px; }
+
 .code-input {
   text-align: center;
   font-size: var(--t-2xl);

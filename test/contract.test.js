@@ -278,17 +278,56 @@ test('saving config round-trips through the strings the admin form posts', withA
   assert.equal(d.config.checkInEnabled, false);
 }));
 
-test('saving a person generates a code and is idempotent on re-save', withApi((h) => {
+test('saving a person creates no access code by default', withApi((h) => {
+  // Codes are the visitor fallback now, not the norm: anyone with a UMD Google
+  // account needs none, and every code that exists is a bearer secret to leak.
   const token = h.login('ROB123');
-  const first = data(h.call({ action: 'adminSavePerson', token,
+  const d = data(h.call({ action: 'adminSavePerson', token,
     person: { email: 'New@UMD.edu', name: 'New Person', lab: 'x', role: 'student' } }));
-  assert.equal(first.saved, 'new@umd.edu', 'email is lowercased');
-  assert.match(first.code, /^[A-HJ-NP-Z2-9]{6}$/, 'no ambiguous glyphs');
+  assert.equal(d.saved, 'new@umd.edu', 'email is lowercased');
+  assert.equal(d.code, '', 'no code unless one is asked for');
+  assert.match(error(h.call({ action: 'login', code: '' })), /Enter your access code/);
+}));
 
-  const second = data(h.call({ action: 'adminSavePerson', token,
-    person: { email: 'new@umd.edu', name: 'New Name', role: 'student' } }));
-  assert.equal(second.code, first.code, 'an existing code is kept');
-  assert.ok(h.call({ action: 'login', code: first.code }).ok);
+test('a visitor can be given a code, and it works', withApi((h) => {
+  const token = h.login('ROB123');
+  const d = data(h.call({ action: 'adminSavePerson', token,
+    person: { email: 'visitor@example.org', name: 'Visiting Scholar',
+              role: 'student', needsCode: true } }));
+  assert.match(d.code, /^[A-HJ-NP-Z2-9]{6}$/, 'no ambiguous glyphs');
+  assert.ok(h.call({ action: 'login', code: d.code }).ok);
+
+  // Re-saving must not churn the code out from under them.
+  const again = data(h.call({ action: 'adminSavePerson', token,
+    person: { email: 'visitor@example.org', name: 'Visiting Scholar', role: 'student' } }));
+  assert.equal(again.code, d.code);
+  assert.ok(h.call({ action: 'login', code: d.code }).ok);
+}));
+
+test('a code can be issued and revoked for an existing person', withApi((h) => {
+  const token = h.login('ROB123');
+  data(h.call({ action: 'adminSavePerson', token,
+                person: { email: 'guest@example.org', name: 'Guest', role: 'student' } }));
+
+  const issued = data(h.call({ action: 'adminSetCode', token, email: 'guest@example.org' }));
+  assert.match(issued.code, /^[A-HJ-NP-Z2-9]{6}$/);
+  assert.ok(h.call({ action: 'login', code: issued.code }).ok);
+
+  const revoked = data(h.call({ action: 'adminSetCode', token,
+                                email: 'guest@example.org', issue: false }));
+  assert.equal(revoked.code, '');
+  assert.match(error(h.call({ action: 'login', code: issued.code })), /not recognised/);
+}));
+
+test('several people with no code do not collide', withApi((h) => {
+  // '' is not unique, so the index has to be partial or the second one fails.
+  const token = h.login('ROB123');
+  for (const e of ['a@umd.edu', 'b@umd.edu', 'c@umd.edu']) {
+    assert.ok(h.call({ action: 'adminSavePerson', token,
+                       person: { email: e, name: e, role: 'student' } }).ok, e);
+  }
+  const roster = data(h.call({ action: 'adminState', token })).roster;
+  assert.equal(roster.filter((r) => !r.code).length, 3);
 }));
 
 test('saving a desk upserts and is visible immediately', withApi((h) => {

@@ -14,6 +14,7 @@ const S = require('./store');
 const { isConflict } = require('./db');
 const { mintToken, emailFromToken, Throttle, makeCode } = require('./auth');
 const { parseTable } = require('./csv');
+const { createVerifier } = require('./google');
 
 class UserError extends Error {
   constructor(message) { super(message); this.isUserError = true; }
@@ -21,7 +22,7 @@ class UserError extends Error {
 
 const EXPIRED = 'Your session expired. Please sign in again.';
 
-function createApi({ db, secret, now = () => new Date() }) {
+function createApi({ db, secret, now = () => new Date(), google = null }) {
   const throttle = new Throttle();
 
   /* ----------------------------- helpers ------------------------------- */
@@ -97,6 +98,51 @@ function createApi({ db, secret, now = () => new Date() }) {
       throttle.clear(keys);
       S.audit(db, matches[0].email, 'login', '');
       return { token: mintToken(matches[0].email, secret), user: S.publicUser(matches[0]) };
+    },
+
+    /**
+     * Sign in with Google.
+     *
+     * Google establishes who someone is; the roster decides whether they are
+     * allowed. A perfectly valid Google account that is not on the roster gets
+     * nothing — that is what stops this being open to the whole internet.
+     */
+    async loginGoogle(p) {
+      if (!google) {
+        throw new UserError('Google sign-in is not configured on this server.');
+      }
+      const keys = [`ip:${p.clientIp || 'unknown'}`];
+      if (throttle.blocked(keys)) {
+        throw new UserError('Too many failed sign-ins. Try again in a few minutes.');
+      }
+
+      let identity;
+      try {
+        identity = await google(p.credential);
+      } catch (err) {
+        throttle.fail(keys);
+        throw new UserError(err.message);
+      }
+
+      const person = S.personByEmail(db, identity.email);
+      if (!person || !person.active) {
+        // Deliberately specific: the failure is almost always "a moderator has
+        // not added me yet", and a vague message sends people to the wrong fix.
+        S.audit(db, identity.email, 'login_denied', 'not on the roster');
+        throw new UserError(
+          identity.email + ' is not on the roster for this lab. Ask a moderator to add you.');
+      }
+
+      throttle.clear(keys);
+      // Keep the roster's display name fresh from Google, but never let Google
+      // change anyone's role or whether they are active.
+      if (identity.name && identity.name !== person.name) {
+        db.run('UPDATE roster SET name = :n WHERE email = :e',
+               { n: identity.name, e: person.email });
+        person.name = identity.name;
+      }
+      S.audit(db, person.email, 'login', 'google');
+      return { token: mintToken(person.email, secret), user: S.publicUser(person) };
     },
 
     state(p) {
@@ -310,13 +356,20 @@ function createApi({ db, secret, now = () => new Date() }) {
       const email = String(person.email || '').trim().toLowerCase();
       if (!email) throw new UserError('email is required.');
       const existing = S.personByEmail(db, email);
-      const code = D.normCode(person.code) || (existing && existing.code) || makeCode();
+      // Codes are now the exception: someone with a UMD Google account needs
+      // none, and every code that exists is one more bearer secret to leak.
+      // Only issue one when asked, or keep one that already exists.
+      let code = D.normCode(person.code) || (existing ? existing.code : '');
+      if (person.needsCode === true && !code) code = uniqueCode();
+      if (person.needsCode === false) code = '';
       const role = String(person.role || 'student').trim().toLowerCase();
       if (!['student', 'moderator'].includes(role)) {
         throw new UserError('Role must be student or moderator.');
       }
-      const clash = db.get('SELECT email FROM roster WHERE code = :c AND email <> :e',
-                           { c: code, e: email });
+      // Only a real code can clash: '' means "no code" and any number of people
+      // are in that position.
+      const clash = code && db.get('SELECT email FROM roster WHERE code = :c AND email <> :e',
+                                   { c: code, e: email });
       if (clash) {
         throw new UserError('That access code is already in use by ' + clash.email + '.');
       }
@@ -373,7 +426,7 @@ function createApi({ db, secret, now = () => new Date() }) {
         throw new UserError('No "email" column found. Header was: ' + header.join(', '));
       }
 
-      const existingCodes = new Set(S.roster(db).map((r) => r.code));
+      const existingCodes = new Set(S.roster(db).map((r) => r.code).filter(Boolean));
       const seen = new Set();
       const plan = [];
 
@@ -402,17 +455,14 @@ function createApi({ db, secret, now = () => new Date() }) {
 
         const existing = S.personByEmail(db, email);
         let code = D.normCode(pick(row, 'code'));
-        if (code && code !== (existing && existing.code)) {
-          if (existingCodes.has(code)) {
-            plan.push(Object.assign(entry, { action: 'skip', reason: 'that access code is already in use' }));
-            continue;
-          }
+        if (code && code !== (existing && existing.code) && existingCodes.has(code)) {
+          plan.push(Object.assign(entry, { action: 'skip', reason: 'that access code is already in use' }));
+          continue;
         }
+        // No code unless the file supplied one or the person already had one:
+        // everybody with a UMD Google account signs in without one.
         if (!code) code = (existing && existing.code) || '';
-        if (!code) {
-          do { code = makeCode(); } while (existingCodes.has(code));
-        }
-        existingCodes.add(code);
+        if (code) existingCodes.add(code);
         entry.code = code;
         // A name is only overwritten when the file actually supplies one.
         entry.action = existing ? 'update' : 'add';
@@ -457,6 +507,32 @@ function createApi({ db, secret, now = () => new Date() }) {
      * student who has graduated should not still be holding desks, and nobody
      * would think to go and force-release them one by one.
      */
+    /**
+     * Give someone an access code, or take it away.
+     *
+     * The code path exists for visitors without a UMD Google account. Revoking
+     * is immediate — sessions already open are unaffected, which is the right
+     * behaviour for "this person no longer needs the fallback" and the wrong one
+     * for "this code leaked", where you reissue instead.
+     */
+    adminSetCode(p) {
+      const mod = requireModerator(p);
+      const email = String(p.email || '').trim().toLowerCase();
+      const person = S.personByEmail(db, email);
+      if (!person) throw new UserError('No such person.');
+
+      let code = '';
+      if (p.issue !== false) {
+        code = D.normCode(p.code) || uniqueCode();
+        const clash = db.get('SELECT email FROM roster WHERE code = :c AND email <> :e',
+                             { c: code, e: email });
+        if (clash) throw new UserError('That access code is already in use by ' + clash.email + '.');
+      }
+      db.run('UPDATE roster SET code = :c WHERE email = :e', { c: code, e: email });
+      S.audit(db, mod.email, code ? 'issue_code' : 'revoke_code', email);
+      return { email, code };
+    },
+
     adminSetActive(p) {
       const mod = requireModerator(p);
       const email = String(p.email || '').trim().toLowerCase();
@@ -498,6 +574,15 @@ function createApi({ db, secret, now = () => new Date() }) {
     },
   };
 
+  /** A code nobody else holds. Collisions are rare but silent if unchecked. */
+  function uniqueCode() {
+    for (let i = 0; i < 50; i++) {
+      const code = makeCode();
+      if (!db.get('SELECT 1 AS n FROM roster WHERE code = :c', { c: code })) return code;
+    }
+    throw new Error('Could not find an unused access code.');
+  }
+
   function releaseClaim(claimId, actor, force) {
     return db.tx(() => {
       const claim = S.claimById(db, claimId);
@@ -514,23 +599,38 @@ function createApi({ db, secret, now = () => new Date() }) {
     });
   }
 
-  /** Always resolves; failures are carried in the envelope, never as a status. */
+  function envelope(err) {
+    if (err && err.isUserError) return { ok: false, error: err.message };
+    // Never hand an internal message to the browser: a duplicate access code
+    // would otherwise show a moderator "UNIQUE constraint failed: roster.code".
+    console.error('[api]', err);
+    return { ok: false, error: 'Something went wrong on the server. Try again, ' +
+                               'and tell a moderator if it keeps happening.' };
+  }
+
+  /**
+   * Always resolves to an envelope; failures are carried inside it, never as an
+   * HTTP status.
+   *
+   * Returns the envelope directly for the synchronous actions and a promise for
+   * the one that is not (loginGoogle, which may fetch Google's signing keys).
+   * Callers `await` either way. Making this unconditionally async would be
+   * tidier, but every caller and every test would have to change for the sake of
+   * a single handler.
+   */
   function dispatch(body) {
     const action = body && body.action;
     try {
       const handler = Object.prototype.hasOwnProperty.call(actions, action)
         ? actions[action] : null;
       if (!handler) throw new UserError('Unknown action: ' + action);
-      return { ok: true, data: handler(body) };
-    } catch (err) {
-      if (err && err.isUserError) {
-        return { ok: false, error: err.message };
+      const out = handler(body);
+      if (out && typeof out.then === 'function') {
+        return out.then((data) => ({ ok: true, data }), envelope);
       }
-      // Never hand an internal message to the browser: a duplicate access code
-      // would otherwise show a moderator "UNIQUE constraint failed: roster.code".
-      console.error('[api]', action, err);
-      return { ok: false, error: 'Something went wrong on the server. Try again, ' +
-                                'and tell a moderator if it keeps happening.' };
+      return { ok: true, data: out };
+    } catch (err) {
+      return envelope(err);
     }
   }
 

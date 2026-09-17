@@ -95,7 +95,13 @@
     table('#roster-table', [
       { head: 'Name', cell: function (r) { return r.name; } },
       { head: 'Email', cell: function (r) { return r.email; } },
-      { head: 'Code', cell: function (r) { return r.code; } },
+      { head: 'Sign-in', cell: function (r) {
+          if (r.code) return r.code;
+          var s = document.createElement('span');
+          s.className = 'muted';
+          s.textContent = 'Google';
+          return s;
+        } },
       { head: 'Role', cell: function (r) { return r.role; } },
       { head: 'Lab', cell: function (r) { return r.lab; } },
       { head: 'Showed up', cell: function (r) {
@@ -103,6 +109,27 @@
           return total ? r.honoured + '/' + total : '—';
         } },
       { head: '', cell: function (r) {
+          var wrap = document.createElement('span');
+          wrap.className = 'bar';
+          var codeBtn = document.createElement('button');
+          codeBtn.type = 'button';
+          codeBtn.className = 'btn btn-sm';
+          codeBtn.textContent = r.code ? 'Revoke code' : 'Issue code';
+          codeBtn.title = r.code
+            ? 'Remove the access code; they would then need a UMD Google account'
+            : 'For a visitor without a UMD Google account';
+          codeBtn.addEventListener('click', function () {
+            API.call('adminSetCode', { email: r.email, issue: !r.code })
+              .then(function (res) {
+                Hotdesk.toast(res.code
+                  ? 'Access code for ' + (r.name || r.email) + ': ' + res.code
+                  : 'Access code revoked; ' + (r.name || r.email) + ' now signs in with Google.');
+                return open();
+              })
+              .catch(function (err) { Hotdesk.toast(err.message, true); });
+          });
+          wrap.appendChild(codeBtn);
+
           var b = document.createElement('button');
           b.type = 'button';
           b.className = r.active ? 'btn btn-danger btn-sm' : 'btn btn-sm';
@@ -122,7 +149,8 @@
               })
               .catch(function (err) { Hotdesk.toast(err.message, true); });
           });
-          return b;
+          wrap.appendChild(b);
+          return wrap;
         } },
     ], admin.roster);
     // Grey out the people who are switched off, so the roster reads at a glance.
@@ -260,10 +288,13 @@
     var person = {
       email: form.email.value, name: form.name.value,
       lab: form.lab.value, role: form.role.value,
+      needsCode: form.needsCode.checked,
     };
     API.call('adminSavePerson', { person: person }).then(function (res) {
       var out = $('#person-result');
-      out.textContent = 'Saved. ' + res.saved + ' — access code: ' + res.code;
+      out.textContent = res.code
+        ? 'Saved. ' + res.saved + ' — access code: ' + res.code
+        : 'Saved. ' + res.saved + ' — signs in with their UMD Google account.';
       out.hidden = false;
       form.reset();
       return open();

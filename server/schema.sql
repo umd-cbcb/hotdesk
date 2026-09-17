@@ -37,8 +37,10 @@ CREATE TABLE IF NOT EXISTS roster (
 );
 
 -- Sign-in matches on the code alone, so two people sharing one would make the
--- match ambiguous. The old backend could only notice that at login time.
-CREATE UNIQUE INDEX IF NOT EXISTS roster_code_unique ON roster(code);
+-- match ambiguous. Partial, because '' means "no code, signs in with Google"
+-- and any number of people are in that position.
+CREATE UNIQUE INDEX IF NOT EXISTS roster_code_unique_partial
+  ON roster(code) WHERE code <> '';
 
 CREATE TABLE IF NOT EXISTS desks (
   desk_id      TEXT PRIMARY KEY,

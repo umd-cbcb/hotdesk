@@ -105,9 +105,11 @@ const personByEmail = (db, email) => {
  * than pick one. A unique index makes that impossible, but the check stays as a
  * belt-and-braces against a database restored from elsewhere.
  */
+// `code <> ''` matters: '' means "no code, signs in with Google", and without
+// it an empty submission would match every Google-only person at once.
 const peopleByCode = (db, code) =>
-  db.all('SELECT * FROM roster WHERE code = :c AND active = 1', { c: String(code) })
-    .map(toPerson);
+  db.all("SELECT * FROM roster WHERE code = :c AND code <> '' AND active = 1",
+         { c: String(code) }).map(toPerson);
 
 const activeClaimsOn = (db, date) =>
   db.all("SELECT * FROM claims WHERE date = :d AND status = 'active'", { d: date })

@@ -73,29 +73,39 @@ test('a dry run reports the plan and writes nothing', withApi((h) => {
                'nothing written on a dry run');
 }));
 
-test('applying the import adds people who can then sign in', withApi((h) => {
+test('applying the import adds people, Google-first with no access code', withApi((h) => {
   const token = h.login('ROB123');
   const d = data(h.call({ action: 'adminImportRoster', token, csv: CSV, dryRun: false }));
   assert.equal(d.dryRun, false);
 
   const ada = d.rows.find((r) => r.email === 'ada@umd.edu' && r.action === 'add');
-  assert.match(ada.code, /^[A-HJ-NP-Z2-9]{6}$/, 'a code to hand out');
-  assert.ok(h.call({ action: 'login', code: ada.code }).ok);
+  assert.equal(ada.code, '', 'a cohort with UMD accounts needs no bearer secrets');
 
   const roster = data(h.call({ action: 'adminState', token })).roster;
   assert.equal(roster.find((r) => r.email === 'grace@umd.edu').role, 'moderator');
+  assert.equal(roster.find((r) => r.email === 'ada@umd.edu').active, true);
   assert.equal(roster.some((r) => r.email === 'not-an-email'), false);
 }));
 
-test('re-importing keeps existing codes so nobody is locked out', withApi((h) => {
+test('a CSV that supplies codes creates visitors who can sign in with them', withApi((h) => {
+  // The fallback path: someone without a UMD Google account.
   const token = h.login('ROB123');
-  const first = data(h.call({ action: 'adminImportRoster', token, csv: CSV, dryRun: false }));
-  const adaCode = first.rows.find((r) => r.email === 'ada@umd.edu').code;
+  const d = data(h.call({ action: 'adminImportRoster', token, dryRun: false,
+    csv: 'email,name,code\nvisitor@example.org,Visiting Scholar,VIS123\n' }));
+  assert.equal(d.added, 1);
+  assert.equal(d.rows[0].code, 'VIS123');
+  assert.ok(h.call({ action: 'login', code: 'VIS123' }).ok);
+}));
 
+test('re-importing never disturbs an existing code', withApi((h) => {
+  const token = h.login('ROB123');
+  // Priya is already on the roster with PRIYA1 and appears in the file.
   const again = data(h.call({ action: 'adminImportRoster', token, csv: CSV, dryRun: false }));
-  assert.equal(again.added, 0);
-  assert.equal(again.rows.find((r) => r.email === 'ada@umd.edu').code, adaCode);
-  assert.ok(h.call({ action: 'login', code: adaCode }).ok, 'the old code still works');
+  assert.equal(again.rows.find((r) => r.email === 'priya@umd.edu').code, 'PRIYA1');
+  assert.ok(h.call({ action: 'login', code: 'PRIYA1' }).ok, 'the old code still works');
+
+  const third = data(h.call({ action: 'adminImportRoster', token, csv: CSV, dryRun: false }));
+  assert.equal(third.added, 0, 'and a third pass adds nobody');
 }));
 
 test('a code already in use is refused rather than silently stealing a login', withApi((h) => {

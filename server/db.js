@@ -44,7 +44,48 @@ function open(dbPath, { mustExist = false } = {}) {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(fs.readFileSync(SCHEMA, 'utf8'));
+  migrate(db);
   return wrap(db);
+}
+
+/**
+ * Ordered, idempotent schema changes.
+ *
+ * CREATE TABLE IF NOT EXISTS gets a database created, but gives no way to change
+ * one that already holds data. Each step here runs once and is recorded, so an
+ * install from a year ago and a fresh one end up identical.
+ */
+const MIGRATIONS = [
+  {
+    version: 1,
+    name: 'code is optional once people can sign in with Google',
+    run(db) {
+      // The old index was unqualified, so a second person with no code would
+      // have collided on ''.
+      db.exec('DROP INDEX IF EXISTS roster_code_unique');
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS roster_code_unique_partial ' +
+              "ON roster(code) WHERE code <> ''");
+    },
+  },
+];
+
+function migrate(db) {
+  const applied = new Set(
+    db.prepare('SELECT version FROM schema_version').all().map((r) => r.version));
+  for (const step of MIGRATIONS) {
+    if (applied.has(step.version)) continue;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      step.run(db);
+      db.prepare('INSERT INTO schema_version(version, applied_at) VALUES(?, ?)')
+        .run(step.version, new Date().toISOString());
+      db.exec('COMMIT');
+      console.log('[schema] applied ' + step.version + ': ' + step.name);
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw new Error('Schema migration ' + step.version + ' failed: ' + err.message);
+    }
+  }
 }
 
 function wrap(db) {
@@ -100,4 +141,4 @@ function isConflict(err) {
          m.includes('one_desk_per_person_per_day');
 }
 
-module.exports = { open, isConflict };
+module.exports = { open, isConflict, MIGRATIONS };

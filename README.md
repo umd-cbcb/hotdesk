@@ -53,6 +53,52 @@ VPN. See **[deploy/README.md](deploy/README.md)** for installing it, importing t
 old Google Sheet, backups, and how to reach it over an SSH tunnel before the
 firewall port is open.
 
+## Signing in
+
+Two paths, deliberately unequal.
+
+**Sign in with Google** is the normal one. UMD accounts are Google Workspace
+accounts, so this needs no involvement from campus IT — you create an OAuth
+client in your own Google Cloud project and that is the whole integration. The
+server verifies the ID token locally against Google's published signing keys, so
+a sign-in costs no round trip and does not fail when Google is slow.
+
+**Google establishes who you are; the roster decides whether you are allowed.**
+A perfectly valid Google account that is not on the roster gets nothing. That is
+what keeps the board from being open to every Google user alive, and it is why
+deactivating someone still works.
+
+**An access code** is the fallback, for a visiting scholar with no UMD account.
+Codes are opt-in now: tick *Visitor* when adding someone, or use **Issue code**
+on their roster row. Everyone else has no code at all, which means the number of
+bearer secrets in the system is the number of visitors rather than the number of
+people.
+
+### Setting up the Google client
+
+1. <https://console.cloud.google.com> → create a project (any name).
+2. **APIs & Services → OAuth consent screen** → **External**. Fill in the app
+   name and your email. Only the basic `openid`, `email` and `profile` scopes are
+   used, so this does not need Google's verification review; even Testing mode
+   allows 100 users, which is well past the size of this lab.
+3. **Credentials → Create credentials → OAuth client ID → Web application.**
+   - Authorised JavaScript origins: `https://hotdesk.cbcb.umd.edu`
+   - No redirect URI is needed — the button hands the token straight to the page.
+4. Copy the **client ID**. There is no secret to copy: the browser flow does not
+   use one, which is why the client ID can safely ship to the browser.
+5. Put it in `~hotdesk/app/.env` and restart:
+
+   ```
+   GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+   ```
+
+   Optionally `GOOGLE_ALLOWED_DOMAINS=umd.edu,terpmail.umd.edu` as belt and
+   braces. Leave it unset if you want to put a visitor's personal Google address
+   on the roster — the roster is the real control either way.
+
+With `GOOGLE_CLIENT_ID` unset the board runs on access codes alone, exactly as
+before, so this is safe to configure later.
+
 ## Managing people
 
 The moderator panel does three things to the roster.

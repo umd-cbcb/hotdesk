@@ -496,12 +496,71 @@
 
   /* ------------------------------- wiring -------------------------------- */
 
+  /**
+   * Render Google's sign-in button, if a client id is configured.
+   *
+   * Loaded lazily and failing quietly: if Google is unreachable the access-code
+   * path is still there, and a blank panel with no explanation would be worse
+   * than a slightly emptier sign-in screen.
+   */
+  function wireGoogle() {
+    var clientId = (global.HOTDESK_CONFIG || {}).googleClientId;
+    if (!clientId) return;
+
+    var script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onerror = function () {
+      var hint = $('#google-hint');
+      hint.textContent = 'Google sign-in could not load. Use an access code below.';
+      hint.hidden = false;
+      $('#google-signin').hidden = false;
+      $('#code-signin').open = true;
+    };
+    script.onload = function () {
+      if (!global.google || !global.google.accounts) { script.onerror(); return; }
+      global.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: function (response) {
+          var err = $('#login-error');
+          err.hidden = true;
+          API.loginGoogle(response.credential)
+            .then(load)
+            .catch(function (ex) {
+              err.textContent = ex.message;
+              err.hidden = false;
+            });
+        },
+      });
+      // Match OUR resolved theme, not the OS preference: someone on a dark
+      // desktop who has set the board to light would otherwise get a black
+      // button on a white card.
+      var dark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+                 (!document.documentElement.getAttribute('data-theme') &&
+                  matchMedia('(prefers-color-scheme: dark)').matches);
+      global.google.accounts.id.renderButton($('#google-button'), {
+        theme: dark ? 'filled_black' : 'outline',
+        size: 'large', text: 'signin_with', shape: 'pill', width: 280,
+      });
+      $('#google-signin').hidden = false;
+      $('#login-subtitle').textContent = 'Sign in with your UMD account.';
+    };
+    document.head.appendChild(script);
+  }
+
   function wire() {
+    wireGoogle();
     $('#login-form').addEventListener('submit', function (e) {
       e.preventDefault();
       var err = $('#login-error');
       err.hidden = true;
-      API.login($('#login-code').value).then(function () {
+      var code = $('#login-code').value;
+      if (!code.trim()) {
+        $('#code-signin').open = true;
+        $('#login-code').focus();
+        return;
+      }
+      API.login(code).then(function () {
         return load();
       }).catch(function (ex) {
         err.textContent = ex.message;

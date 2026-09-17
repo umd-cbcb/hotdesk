@@ -28,13 +28,24 @@
   <form class="card login-card" id="login-form">
     <div class="login-mark" aria-hidden="true"></div>
     <h1 class="login-title">CBCB Hotdesk</h1>
-    <p class="muted small">Enter the access code you were given.</p>
-    <input id="login-code" class="code-input" type="text" inputmode="latin"
-           autocomplete="one-time-code" spellcheck="false" placeholder="ABC123"
-           maxlength="12" aria-label="Access code" autocapitalize="characters">
-    <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+    <p id="login-subtitle" class="muted small">Enter the access code you were given.</p>
+    <div id="google-signin" hidden>
+      <div id="google-button"></div>
+      <p id="google-hint" class="muted xsmall" hidden></p>
+      <div class="or"><span>or</span></div>
+    </div>
+
+    <details id="code-signin" class="code-signin">
+      <summary class="muted small">Visiting? Use an access code</summary>
+      <div class="stack">
+        <input id="login-code" class="code-input" type="text" inputmode="latin"
+               autocomplete="one-time-code" spellcheck="false" placeholder="ABC123"
+               maxlength="12" aria-label="Access code" autocapitalize="characters">
+        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+      </div>
+    </details>
+
     <p id="login-error" class="error small" role="alert" hidden></p>
-    <p class="muted xsmall">Lost your code? Ask a moderator to re-send it.</p>
   </form>
 </section>
 
@@ -114,6 +125,10 @@
           <option value="student">student</option>
           <option value="moderator">moderator</option>
         </select>
+        <label class="check">
+          <input type="checkbox" name="needsCode">
+          <span>Visitor — no UMD account, needs an access code</span>
+        </label>
         <button class="btn btn-primary" type="submit">Save person</button>
       </form>
       <p id="person-result" class="ok small" hidden></p>

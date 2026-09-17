@@ -57,4 +57,13 @@ module.exports = {
   // The signing secret. Generated and persisted into the database on first run
   // if unset, so a fresh deploy works without ceremony.
   secret: process.env.HOTDESK_SECRET || '',
+
+  // Sign in with Google. The client id is not a secret — it ships to the
+  // browser so the button can render. Leave unset to run on access codes alone.
+  googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
+  // Optional belt-and-braces. The roster is the real allowlist, so leaving this
+  // empty is fine and lets a visitor sign in with any Google account you have
+  // put on the roster.
+  googleAllowedDomains: (process.env.GOOGLE_ALLOWED_DOMAINS || '')
+    .split(',').map((d) => d.trim().toLowerCase()).filter(Boolean),
 };

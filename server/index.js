@@ -17,6 +17,7 @@ const crypto = require('node:crypto');
 const config = require('./config');
 const { open } = require('./db');
 const { createApi } = require('./api');
+const { createVerifier } = require('./google');
 const S = require('./store');
 
 const MIME = {
@@ -135,8 +136,14 @@ function serveStatic(req, res, urlPath) {
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Content-Length': data.length,
-      // The bundle is small and changes on deploy; never serve a stale board.
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=300',
+      // HTML, CSS and JS revalidate on every load. They are a few tens of KB
+      // and they change together on deploy; caching them for even five minutes
+      // means someone can run yesterday's script against today's API right
+      // after an update. Static assets (the floor plan, images, fonts) do not
+      // move with releases, so they are worth caching.
+      'Cache-Control': ['.html', '.css', '.js'].includes(ext)
+        ? 'no-cache'
+        : 'public, max-age=3600',
       'X-Content-Type-Options': 'nosniff',
     });
     res.end(data);
@@ -175,7 +182,7 @@ function createServer({ db, api }) {
         return;
       }
       if (req.method === 'GET') {
-        sendJson(res, api.dispatch({ action: 'ping' }));
+        sendJson(res, await api.dispatch({ action: 'ping' }));
         return;
       }
       if (req.method !== 'POST') {
@@ -190,7 +197,8 @@ function createServer({ db, api }) {
         return;
       }
       body.clientIp = clientIp(req);
-      sendJson(res, api.dispatch(body));
+      // Awaits a plain envelope just as happily as a promised one.
+      sendJson(res, await api.dispatch(body));
       return;
     }
 
@@ -202,6 +210,8 @@ function createServer({ db, api }) {
         'window.HOTDESK_CONFIG = ' + JSON.stringify({
           apiUrl: (config.basePath || '') + '/api',
           floorplan: 'assets/floorplan.svg',
+          // Not a secret: the browser needs it to render the Google button.
+          googleClientId: config.googleClientId || '',
         }, null, 2) + ';\n';
       res.writeHead(200, {
         'Content-Type': 'text/javascript; charset=utf-8',
@@ -237,7 +247,18 @@ function createServer({ db, api }) {
 function start() {
   const db = open(config.dbPath);
   const secret = resolveSecret(db);
-  const api = createApi({ db, secret });
+  const google = config.googleClientId
+    ? createVerifier({ clientId: config.googleClientId,
+                       allowedDomains: config.googleAllowedDomains })
+    : null;
+  if (google) {
+    console.log('google sign-in enabled for client ' + config.googleClientId.slice(0, 24) + '…' +
+                (config.googleAllowedDomains.length
+                  ? ' (domains: ' + config.googleAllowedDomains.join(', ') + ')' : ''));
+  } else {
+    console.log('google sign-in NOT configured; access codes only');
+  }
+  const api = createApi({ db, secret, google });
   const server = createServer({ db, api });
 
   // The sweep also runs lazily on read; this is so desks free up even when

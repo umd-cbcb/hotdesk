@@ -63,6 +63,12 @@
         return data.user;
       });
     },
+    loginGoogle: function (credential) {
+      return call('loginGoogle', { credential: credential }).then(function (data) {
+        setToken(data.token);
+        return data.user;
+      });
+    },
     signOut: function () { setToken(''); },
   };
 })(window);
