@@ -43,9 +43,16 @@ module.exports = {
   host: process.env.HOST || '0.0.0.0',
   dbPath: process.env.DB_PATH || path.join(__dirname, '..', 'data', 'hotdesk.db'),
   staticDir: process.env.STATIC_DIR || path.join(__dirname, '..', 'docs'),
-  // Set when the UMIACS load balancer fronts us, so client addresses are read
-  // from X-Forwarded-For instead of the socket (which would be the balancer).
-  trustProxy: bool(process.env.TRUST_PROXY, false),
+  // How many trusted proxies sit in front of us; 1 for the UMIACS load
+  // balancer. Read as a hop count so X-Forwarded-For can be walked from the
+  // right, where entries our own proxy added live. `true`/`yes` means 1.
+  trustProxy: (() => {
+    const raw = String(process.env.TRUST_PROXY ?? '').trim().toLowerCase();
+    if (raw === '' || raw === '0' || raw === 'false' || raw === 'no') return 0;
+    if (raw === 'true' || raw === 'yes') return 1;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  })(),
   basePath: basePath(process.env.BASE_PATH),
   // The signing secret. Generated and persisted into the database on first run
   // if unset, so a fresh deploy works without ceremony.

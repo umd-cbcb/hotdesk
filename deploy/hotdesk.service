@@ -18,9 +18,10 @@ Environment=NODE_ENV=production
 Environment=PORT=8080
 Environment=HOST=0.0.0.0
 Environment=DB_PATH=%h/data/hotdesk.db
-# TRUST_PROXY=1 once the UMIACS load balancer fronts this, so client addresses
-# for rate limiting come from X-Forwarded-For rather than the balancer's own.
-Environment=TRUST_PROXY=0
+# Number of trusted proxies in front of us. 1 = the UMIACS load balancer that
+# serves hotdesk.cbcb.umd.edu. At 0 every request looks like it came from the
+# balancer, so one person mistyping their code would lock out the whole lab.
+Environment=TRUST_PROXY=1
 # The signing secret lives in %h/app/.env so restarts do not log everyone out.
 EnvironmentFile=-%h/app/.env
 

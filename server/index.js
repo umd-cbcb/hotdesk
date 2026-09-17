@@ -61,10 +61,28 @@ function resolveSecret(db) {
   return secret;
 }
 
-function clientIp(req) {
-  if (config.trustProxy) {
+/**
+ * The client address, for rate limiting.
+ *
+ * X-Forwarded-For is a list the client can seed: a request arriving with
+ * `X-Forwarded-For: 1.2.3.4` leaves the balancer as `1.2.3.4, <real client>`.
+ * So the LEFTMOST entry is attacker-controlled and taking it defeats the
+ * throttle entirely. Count back from the right instead — the rightmost entry is
+ * the one our own trusted proxy appended.
+ *
+ * TRUST_PROXY is the number of proxies in front of us (1 for the UMIACS load
+ * balancer); `true` means 1. With 0 we use the socket, which behind a balancer
+ * makes every student look like one client and lets one mistyped code lock out
+ * the whole lab.
+ */
+function clientIp(req, hops = config.trustProxy) {
+  if (hops > 0) {
     const fwd = req.headers['x-forwarded-for'];
-    if (fwd) return String(fwd).split(',')[0].trim();
+    if (fwd) {
+      const chain = String(fwd).split(',').map((s) => s.trim()).filter(Boolean);
+      const ip = chain[chain.length - hops];
+      if (ip) return ip;
+    }
   }
   return req.socket.remoteAddress || 'unknown';
 }
@@ -250,6 +268,6 @@ function start() {
   return { server, db, api };
 }
 
-module.exports = { createServer, start, resolveSecret };
+module.exports = { createServer, start, resolveSecret, clientIp };
 
 if (require.main === module) start();
